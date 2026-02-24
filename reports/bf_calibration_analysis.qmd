@@ -37,7 +37,7 @@ summaries <- readRDS(here("output", "bf_calibration_summaries.rds"))
 
 # Factor labels
 link_labels <- c(logit = "Logit link", probit = "Probit link")
-dist_labels <- c(normal = "Normal", logistic = "Logistic", cauchy = "Cauchy")
+dist_labels <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
 dist_b0_labels <- c(logistic = "Logistic (matched for logit)",
                     normal   = "Normal (matched for probit)")
 
@@ -94,8 +94,8 @@ matched <- summaries |>
     true_b1 > 0
   ) |>
   mutate(
-    dist_b1  = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
-                      labels = dist_labels),
+    dist_b1  = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                      labels = c("Cauchy", "Normal", "Logistic")),
     sd_b1    = factor(paste0("sd = ", sd_b1)),
     n_label  = paste0("n = ", n_subjects, " subj × ", n_trials, " trials")
   )
@@ -168,8 +168,8 @@ summaries |>
     (link == "probit" & dist_b0 == "normal")
   ) |>
   mutate(
-    dist_b1 = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
-                     labels = dist_labels),
+    dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                     labels = c("Cauchy", "Normal", "Logistic")),
     sd_b1   = factor(paste0("sd = ", sd_b1))
   ) |>
   ggplot(aes(x = n_subjects, y = P_BF01_gt3,
@@ -208,8 +208,8 @@ summaries |>
     true_b1 > 0
   ) |>
   mutate(
-    dist_b1 = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
-                     labels = dist_labels)
+    dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                     labels = c("Cauchy", "Normal", "Logistic"))
   ) |>
   ggplot(aes(x = true_b1, y = P_BF10_gt3, color = dist_b1)) +
   geom_line(linewidth = 0.8) +
@@ -292,8 +292,8 @@ summaries |>
     .groups = "drop"
   ) |>
   mutate(
-    dist_b1 = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
-                     labels = dist_labels),
+    dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                     labels = c("Cauchy", "Normal", "Logistic")),
     link    = factor(link, labels = link_labels)
   ) |>
   pivot_wider(names_from = true_b1, values_from = min_n_80pct,

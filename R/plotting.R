@@ -22,7 +22,7 @@ prior_theme <- function() {
 
 # Human-readable labels for facets and legends
 link_labels    <- c(logit = "Logit link", probit = "Probit link")
-dist_labels    <- c(normal = "Normal", logistic = "Logistic", cauchy = "Cauchy")
+dist_labels    <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
 
 
 # ==============================================================================
@@ -57,8 +57,8 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
   draws_long <- draws_long |>
     dplyr::mutate(
       sd_b0_label = paste0("sd_b0 = ", sd_b0),
-      dist_b0     = factor(dist_b0, levels = c("logistic", "normal", "cauchy"),
-                           labels = dist_labels)
+      dist_b0     = factor(dist_b0, levels = c("cauchy", "normal", "logistic"),
+                           labels = c("Cauchy", "Normal", "Logistic"))
     )
 
   ggplot2::ggplot(
@@ -108,6 +108,9 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
 #' @param sd_b0_focus Numeric. Which sd_b0 value is shown (for subtitle).
 #' @return A ggplot object.
 plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
+  draws_long$dist_b1 <- factor(draws_long$dist_b1,
+    levels = c("cauchy", "normal", "logistic"),
+    labels = c("Cauchy", "Normal", "Logistic"))
   draws_long$sd_b1 <- factor(draws_long$sd_b1)
 
   ggplot2::ggplot(
@@ -128,8 +131,8 @@ plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
                                  limits = c(-1, 1),
                                  breaks = seq(-1, 1, 0.25)) +
     ggplot2::scale_y_discrete("SD of effect prior (sd_b1)") +
-    ggplot2::scale_fill_viridis_d("Prior family", labels = dist_labels, option = "D", end = 0.85) +
-    ggplot2::scale_color_viridis_d("Prior family", labels = dist_labels, option = "D", end = 0.85) +
+    ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
+    ggplot2::scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::facet_wrap(~link, labeller = ggplot2::labeller(link = link_labels)) +
     ggplot2::labs(
       title    = "Prior predictive distribution of effect size on probability scale",
@@ -161,8 +164,8 @@ plot_floor_ceiling_heatmap <- function(summaries, threshold = 0.10) {
       .by = c(link, dist_b0, sd_b0)
     )
   dat$sd_b0   <- factor(dat$sd_b0)
-  dat$dist_b0 <- factor(dat$dist_b0, levels = c("logistic", "normal", "cauchy"),
-                        labels = dist_labels)
+  dat$dist_b0 <- factor(dat$dist_b0, levels = c("cauchy", "normal", "logistic"),
+                        labels = c("Cauchy", "Normal", "Logistic"))
   # contrast-aware text: white on dark (high) cells, black on light (low) cells
   fill_mid <- max(dat$prob_floor_ceiling, 0.20) / 2
   dat$text_color <- ifelse(dat$prob_floor_ceiling > fill_mid, "white", "black")
@@ -224,8 +227,8 @@ plot_quantile_profile <- function(summaries, sd_b0_focus = 0.75) {
         adp_q90 = "90th percentile",
         adp_q95 = "95th percentile"
       ),
-      dist_b1 = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
-                       labels = dist_labels)
+      dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                       labels = c("Cauchy", "Normal", "Logistic"))
     )
 
   ggplot2::ggplot(dat, ggplot2::aes(x = sd_b1, y = value, color = dist_b1,
@@ -270,8 +273,8 @@ plot_link_equivalence <- function(summaries, sd_b0_focus = 0.75) {
       # Only show matched-prior cases for clean comparison
       matched = (link == "logit" & dist_b0 == "logistic") |
                 (link == "probit" & dist_b0 == "normal"),
-      dist_b1 = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
-                       labels = dist_labels)
+      dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                       labels = c("Cauchy", "Normal", "Logistic"))
     ) |>
     dplyr::filter(matched)
 

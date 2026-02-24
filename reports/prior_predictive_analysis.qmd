@@ -279,28 +279,21 @@ $P(p < 0.05 \text{ or } p > 0.95) \leq 0.10$. Under this criterion,
 
 @fig-3-delta-p shows how the choice of $\text{sd}_{b_1}$ translates into implied
 effect sizes on the probability scale ($\delta p$, signed), holding the intercept
-prior fixed at the link-matched recommended prior ($\text{Logistic}(0, 0.75)$
-for the logit link; $\text{Normal}(0, 0.75)$ for the probit link).
+prior fixed at $\text{sd}_{b_0} = 0.75$.
 
 ```{r}
 #| label: fig-3-delta-p
 #| fig-cap: "Density ridges of the prior predictive distribution of delta_p
 #|   (signed effect size on probability scale) for each effect prior SD (y-axis
 #|   rows), colour-coded by prior family (Normal, Logistic, Cauchy), and
-#|   faceted by link function. Intercept prior fixed at the matched recommended
-#|   prior per link: Logistic(0, 0.75) for logit, Normal(0, 0.75) for probit.
+#|   faceted by link function. Intercept prior fixed at sd_b0 = 0.75
+#|   (all available intercept-prior families retained).
 #|   Solid vertical line at 0; dotted lines at +/-0.10, +/-0.20, +/-0.30."
 #| fig-height: 10
 #| fig-width: 10
 
-# Use the link-matched recommended intercept prior for each link:
-# Logistic(0,0.75) for logit, Normal(0,0.75) for probit
 fig2_draws <- draws_long |>
-  filter(
-    (link == "logit"  & dist_b0 == "logistic") |
-    (link == "probit" & dist_b0 == "normal"),
-    sd_b0 == 0.75
-  )
+  filter(sd_b0 == 0.75)
 
 plot_delta_p_ridges(fig2_draws, sd_b0_focus = 0.75)
 ```
@@ -478,7 +471,6 @@ sum-to-zero contrast coding (±1):
 |-------------|---------------|-------------------------------|
 | Logistic (default) | 0.25 | ~0.20 |
 | Normal | 0.25 | ~0.18 |
-| Cauchy | 0.25 | ~0.25 (heavier tails) |
 
 Our default recommendation is $\text{Logistic}(0, 0.25)$ for logit models
 and $\text{Normal}(0, 0.25)$ for probit models. At this scale, effects
