@@ -23,6 +23,8 @@ execute:
   echo: false
   warning: false
   message: false
+bibliography: references.bib
+csl: apa.csl
 ---
 
 ```{r}
@@ -36,10 +38,7 @@ library(here)
 summaries <- readRDS(here("output", "bf_calibration_summaries.rds"))
 
 # Factor labels
-link_labels <- c(logit = "Logit link", probit = "Probit link")
 dist_labels <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
-dist_b0_labels <- c(logistic = "Logistic (matched for logit)",
-                    normal   = "Normal (matched for probit)")
 
 base_theme <- function() {
   theme_minimal(base_size = 12) +
@@ -67,11 +66,41 @@ Bayes factors (BFs) in binomial GLMs. Specifically, we ask:
 
 ### Design
 
-- **720 conditions** from the full factor grid (see `scripts/03_BFCalibration.R`)
-- **500 replications** per condition
-- True intercept fixed at $b_0 = 0$ (50% baseline probability)
-- Intercept prior SD fixed at 0.75 (recommended by Goal 1)
-- Effect prior SD: 0.25, 0.50, 1.00
+The simulation crosses the following factors
+(see `scripts/03_BFCalibration.R`):
+
+- **Intercept prior family** (`dist_b0`): Logistic (matched for logit),
+  Normal (misfit for logit)
+- **Effect prior family** (`dist_b1`): Normal, Logistic, Cauchy
+- **Effect prior SD** (`sd_b1`): 0.25, 0.50
+- **True effect size** (`true_b1`): 0.00, 0.25, 0.50
+- **Number of subjects** (`n_subjects`): 30, 60, 100
+- **Trials per subject** (`n_trials`): 20, 50
+
+This yields **288 conditions** with **100 replications** each.
+
+### Model
+
+All models use the **logit link** (the probit link is expected to produce
+analogous results via the matched-prior principle established in Goal 1).
+The true intercept $b_0$ is **not** fixed: in each replication it is sampled
+from $\text{Uniform}(0.4,\, 0.9)$ on the probability scale and then
+transformed to the logit scale. This covers the range of realistic baseline
+accuracies in cognitive experiments (two-alternative to four-alternative
+forced choice).
+
+Each simulated dataset includes **subject-level random intercepts**
+$u_i \sim \mathcal{N}(0, 0.25)$ to mimic between-subject heterogeneity.
+The analysis model mirrors this structure: a binomial GLMM with one
+random intercept per subject, fitted with brms [@burkner2017].
+
+- Intercept prior SD fixed at 0.75 (recommended by Goal 1).
+- Hyperprior on the random-intercept SD: $\text{Exponential}(4)$.
+
+Bayes factors are computed via the **Savage–Dickey density ratio**
+[@wagenmakers2018]: $\text{BF}_{10} = \pi(b_1 = 0) \,/\, p(b_1 = 0 \mid \text{data})$,
+where the prior density is evaluated analytically and the posterior density
+is estimated by kernel density estimation (KDE with Silverman's bandwidth).
 
 ---
 
@@ -82,22 +111,20 @@ Bayes factors (BFs) in binomial GLMs. Specifically, we ask:
 ```{r}
 #| label: fig-power-n
 #| fig-cap: "Power (P(BF10 > 3)) as a function of the number of subjects and
-#|   the true effect size b1, for each effect prior SD and link function.
-#|   Intercept prior: matched (logistic for logit, normal for probit)."
-#| fig-height: 8
-#| fig-width: 12
+#|   the true effect size, for each effect prior family and SD.
+#|   Intercept prior: Logistic with sd_b0 = 0.75."
+#| fig-height: 6
+#| fig-width: 10
 
 matched <- summaries |>
   filter(
-    (link == "logit"  & dist_b0 == "logistic") |
-    (link == "probit" & dist_b0 == "normal"),
+    dist_b0 == "logistic",
     true_b1 > 0
   ) |>
   mutate(
     dist_b1  = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
                       labels = c("Cauchy", "Normal", "Logistic")),
-    sd_b1    = factor(paste0("sd = ", sd_b1)),
-    n_label  = paste0("n = ", n_subjects, " subj × ", n_trials, " trials")
+    sd_b1    = factor(paste0("sd = ", sd_b1))
   )
 
 ggplot(matched, aes(x = n_subjects, y = P_BF10_gt3,
@@ -109,24 +136,34 @@ ggplot(matched, aes(x = n_subjects, y = P_BF10_gt3,
   scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
   scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
   scale_linetype_manual("Prior SD",
-    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed", "sd = 1" = "dotted")) +
-  facet_grid(n_trials ~ true_b1 + link,
+    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+  facet_grid(n_trials ~ true_b1,
              labeller = labeller(
-               link    = link_labels,
-               true_b1 = function(x) paste0("b1 = ", x)
+               true_b1  = function(x) paste0("b1 = ", x),
+               n_trials = function(x) paste0(x, " trials")
              )) +
-  labs(title = "Power: P(BF10 > 3) by sample size and true effect (matched intercept prior)",
-       subtitle = "Dotted horizontal line = 0.80 power criterion") +
+  labs(title = "Power: P(BF10 > 3) by sample size and true effect",
+       subtitle = "Matched intercept prior (Logistic, sd = 0.75); dotted line = 80% power") +
   base_theme()
 ```
+
+@fig-power-n shows that power increases with both sample size and true
+effect size, as expected. The tighter prior ($\text{sd} = 0.25$) yields
+higher power than $\text{sd} = 0.50$ across all conditions, because the
+narrower prior concentrates more density near the true effect and less at
+extreme values. Differences between the three prior families are small
+relative to the effect of prior SD. With 50 trials per subject, the BF
+reaches the 80% power criterion for $b_1 = 0.50$ at around 60 subjects
+(with $\text{sd} = 0.25$), whereas $b_1 = 0.25$ requires considerably
+larger samples.
 
 ### Power by n_trials
 
 ```{r}
 #| label: fig-power-trials
 #| fig-cap: "Power as a function of trials per subject, for n_subjects = 60
-#|   and each prior specification."
-#| fig-height: 6
+#|   and each prior specification (matched Logistic intercept prior)."
+#| fig-height: 5
 #| fig-width: 10
 
 matched |>
@@ -136,19 +173,23 @@ matched |>
   geom_line(linewidth = 0.8) +
   geom_point(size = 2) +
   geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
-  scale_x_continuous("Trials per subject", breaks = c(20, 50, 100)) +
+  scale_x_continuous("Trials per subject", breaks = c(20, 50)) +
   scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
   scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
   scale_linetype_manual("Prior SD",
-    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed", "sd = 1" = "dotted")) +
-  facet_grid(link ~ true_b1,
+    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+  facet_wrap(~ true_b1,
              labeller = labeller(
-               link    = link_labels,
                true_b1 = function(x) paste0("b1 = ", x)
              )) +
   labs(title = "Power by trials per subject (n_subjects = 60, matched intercept prior)") +
   base_theme()
 ```
+
+Increasing the number of trials per subject from 20 to 50 substantially
+improves power for all prior configurations. This gain is expected because
+more trials per subject reduce within-subject uncertainty, which in turn
+sharpens the posterior for the fixed-effect parameter $b_1$.
 
 ---
 
@@ -157,15 +198,14 @@ matched |>
 ```{r}
 #| label: fig-specificity
 #| fig-cap: "Specificity (P(BF01 > 3)) under the null (true_b1 = 0) for each
-#|   prior specification and sample size."
-#| fig-height: 6
+#|   prior specification and sample size (matched Logistic intercept prior)."
+#| fig-height: 5
 #| fig-width: 10
 
 summaries |>
   filter(
     true_b1 == 0,
-    (link == "logit"  & dist_b0 == "logistic") |
-    (link == "probit" & dist_b0 == "normal")
+    dist_b0 == "logistic"
   ) |>
   mutate(
     dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
@@ -180,14 +220,22 @@ summaries |>
   scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
   scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
   scale_linetype_manual("Prior SD",
-    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed", "sd = 1" = "dotted")) +
-  facet_grid(n_trials ~ link,
-             labeller = labeller(link = link_labels,
-                                 n_trials = function(x) paste0(x, " trials"))) +
+    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+  facet_wrap(~ n_trials,
+             labeller = labeller(
+               n_trials = function(x) paste0(x, " trials")
+             )) +
   labs(title = "Specificity under H0: P(BF01 > 3)",
-       subtitle = "Matched intercept prior (sd_b0 = 0.75)") +
+       subtitle = "Matched intercept prior (Logistic, sd = 0.75)") +
   base_theme()
 ```
+
+Specificity is generally high across all prior configurations: when the null
+is true ($b_1 = 0$), the BF correctly supports H0 (BF01 > 3) in the large
+majority of replications. The wider prior ($\text{sd} = 0.50$) tends to
+yield slightly higher specificity because it places less prior density at
+exactly zero, making the Savage–Dickey ratio more conservative. Prior family
+has minimal impact on specificity.
 
 ---
 
@@ -195,16 +243,15 @@ summaries |>
 
 ```{r}
 #| label: fig-prior-sensitivity
-#| fig-cap: "Comparison of power across prior families at the same sd_b1 = 0.25,
-#|   showing how much the choice of prior family matters."
+#| fig-cap: "Comparison of power across prior families at sd_b1 = 0.25,
+#|   showing the impact of prior family choice on BF calibration."
 #| fig-height: 6
 #| fig-width: 10
 
 summaries |>
   filter(
     sd_b1 == 0.25,
-    (link == "logit"  & dist_b0 == "logistic") |
-    (link == "probit" & dist_b0 == "normal"),
+    dist_b0 == "logistic",
     true_b1 > 0
   ) |>
   mutate(
@@ -218,9 +265,8 @@ summaries |>
   scale_x_continuous("True effect b1") +
   scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
   scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
-  facet_grid(n_trials ~ n_subjects + link,
+  facet_grid(n_trials ~ n_subjects,
              labeller = labeller(
-               link       = link_labels,
                n_subjects = function(x) paste0(x, " subj"),
                n_trials   = function(x) paste0(x, " trials")
              )) +
@@ -228,20 +274,26 @@ summaries |>
   base_theme()
 ```
 
+Holding $\text{sd}_{b_1} = 0.25$ constant, the three prior families
+produce nearly identical power curves across all sample sizes and effect
+sizes. This indicates that the choice of prior family (Normal, Logistic, or
+Cauchy) is far less consequential than the choice of prior scale for BF
+calibration in binomial GLMs.
+
 ---
 
 ## Results: Matched vs. Misfit Intercept Prior
 
 ```{r}
 #| label: fig-misfit-bf
-#| fig-cap: "Effect of intercept prior misfit on power for the logit link:
-#|   matched (Logistic) vs. misfit (Normal) intercept prior."
+#| fig-cap: "Effect of intercept prior misfit on power: matched (Logistic)
+#|   vs. misfit (Normal) intercept prior, with Logistic effect prior at
+#|   sd_b1 = 0.25."
 #| fig-height: 6
 #| fig-width: 10
 
 summaries |>
   filter(
-    link    == "logit",
     dist_b1 == "logistic",
     sd_b1   == 0.25,
     true_b1 > 0
@@ -266,6 +318,12 @@ summaries |>
   base_theme()
 ```
 
+Using a mismatched intercept prior (Normal instead of the matched Logistic)
+has only a small impact on power. This confirms that the intercept prior
+primarily serves to regularise the baseline probability and does not
+meaningfully alter inference about the effect parameter $b_1$, as long as
+its SD is reasonable (here, $\text{sd}_{b_0} = 0.75$).
+
 ---
 
 ## Summary Table
@@ -279,11 +337,10 @@ summaries |>
 summaries |>
   filter(
     n_trials == 50,
-    (link == "logit"  & dist_b0 == "logistic") |
-    (link == "probit" & dist_b0 == "normal"),
+    dist_b0 == "logistic",
     true_b1 > 0
   ) |>
-  group_by(link, dist_b1, sd_b1, true_b1) |>
+  group_by(dist_b1, sd_b1, true_b1) |>
   summarise(
     min_n_80pct = {
       n_meeting <- n_subjects[P_BF10_gt3 >= 0.80]
@@ -293,12 +350,11 @@ summaries |>
   ) |>
   mutate(
     dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
-                     labels = c("Cauchy", "Normal", "Logistic")),
-    link    = factor(link, labels = link_labels)
+                     labels = c("Cauchy", "Normal", "Logistic"))
   ) |>
   pivot_wider(names_from = true_b1, values_from = min_n_80pct,
               names_prefix = "b1 = ") |>
-  knitr::kable(caption = "Minimum n_subjects for 80% power (n_trials = 50)")
+  knitr::kable(caption = "Minimum n_subjects for 80% power (n_trials = 50, matched intercept prior)")
 ```
 
 ---
@@ -307,29 +363,29 @@ summaries |>
 
 Based on the BF calibration results:
 
-1. **Prior family matters less than prior scale:** The Logistic and Normal
-   prior families produce very similar BF calibration at the same `sd_b1`.
-   The Cauchy prior tends to reduce power slightly due to heavier tails.
+1. **Prior scale matters more than prior family.** The Normal and Logistic
+   prior families produce very similar BF calibration at the same
+   $\text{sd}_{b_1}$, and even the heavier-tailed Cauchy prior differs only
+   modestly. The most impactful choice is the prior SD.
 
-2. **Recommended default:** `sd_b1 = 0.25` with either Logistic (logit link)
-   or Normal (probit link) prior provides a good balance of power and
-   specificity for typical cognitive psychology effect sizes (b1 = 0.25–0.75).
+2. **Recommended default:** $\text{sd}_{b_1} = 0.25$ with a Normal or
+   Logistic effect prior provides a good balance of power and specificity
+   for typical cognitive psychology effect sizes ($b_1 \approx 0.25$–$0.50$
+   on the logit scale).
 
 3. **Intercept prior misfit has minimal impact** on BF calibration when
-   `sd_b0 = 0.75`, confirming that the main priority is matching the
-   effect prior scale to the expected range of effects.
+   $\text{sd}_{b_0} = 0.75$, confirming that the main priority is matching
+   the effect prior scale to the expected range of effects.
 
-4. **Sample size requirements:** To achieve 80% power for a medium effect
-   (b1 = 0.50, ~20 percentage points) with 50 trials per condition:
-   approximately 60 subjects are needed with `sd_b1 = 0.25`.
+4. **Sample size guidance:** With 50 trials per condition and
+   $\text{sd}_{b_1} = 0.25$, approximately 60 subjects are needed to
+   achieve 80% power for a medium effect ($b_1 = 0.50$, roughly 12
+   percentage points on the probability scale). Smaller effects
+   ($b_1 = 0.25$) require substantially larger samples or more trials.
 
 ---
 
 ## References
 
-Oberauer, K. (2019). Working memory capacity limits memory for bindings.
-*Journal of Cognition, 2*. https://doi.org/10.5334/joc.86
-
-Rouder, J. N., Morey, R. D., Speckman, P. L., & Province, J. M. (2012).
-Default Bayes factors for ANOVA designs. *Journal of Mathematical
-Psychology, 56*, 356–374. https://doi.org/10.1016/j.jmp.2012.08.001
+::: {#refs}
+:::
