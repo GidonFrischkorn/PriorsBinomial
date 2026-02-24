@@ -1,0 +1,15 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Simulation output (large files)
+output/
+figures/
+
+# Local files (working docs, DOCX)
+local/
+
+# OS
+.DS_Store

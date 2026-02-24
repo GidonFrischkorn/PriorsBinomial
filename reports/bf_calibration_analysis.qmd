@@ -1,0 +1,335 @@
+---
+title: "Default Priors for Binomial GLMs: BF Calibration"
+author:
+  - name: Klaus Oberauer
+    affiliation: University of Zurich
+  - name: Joscha Dutli
+    affiliation: University of Zurich
+  - name: Philipp Musfeld
+    affiliation: University of Zurich
+  - name: Gidon Frischkorn
+    affiliation: University of Lucerne
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    embed-resources: true
+  pdf:
+    toc: true
+    toc-depth: 3
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(viridis)
+library(here)
+
+summaries <- readRDS(here("output", "bf_calibration_summaries.rds"))
+
+# Factor labels
+link_labels <- c(logit = "Logit link", probit = "Probit link")
+dist_labels <- c(normal = "Normal", logistic = "Logistic", cauchy = "Cauchy")
+dist_b0_labels <- c(logistic = "Logistic (matched for logit)",
+                    normal   = "Normal (matched for probit)")
+
+base_theme <- function() {
+  theme_minimal(base_size = 12) +
+    theme(
+      panel.grid.minor = element_blank(),
+      strip.text       = element_text(face = "bold"),
+      legend.position  = "bottom"
+    )
+}
+```
+
+## Introduction
+
+Goal 2 examines how the choice of prior specification affects the behavior of
+Bayes factors (BFs) in binomial GLMs. Specifically, we ask:
+
+1. **Power:** Given a true effect of size $b_1$, how often does the BF exceed
+   the evidence threshold (BF10 > 3 or BF10 > 10)?
+2. **Specificity:** When the null is true ($b_1 = 0$), how often does the BF
+   correctly support the null (BF01 > 3)?
+3. **Sensitivity to prior:** How much do results change across the three prior
+   families (Normal, Logistic, Cauchy)?
+4. **Matched vs. misfit priors:** Does using the matched intercept prior (from
+   Goal 1) matter for BF calibration?
+
+### Design
+
+- **720 conditions** from the full factor grid (see `scripts/03_BFCalibration.R`)
+- **500 replications** per condition
+- True intercept fixed at $b_0 = 0$ (50% baseline probability)
+- Intercept prior SD fixed at 0.75 (recommended by Goal 1)
+- Effect prior SD: 0.25, 0.50, 1.00
+
+---
+
+## Results: Power (H1 true)
+
+### Power by sample size and effect size
+
+```{r}
+#| label: fig-power-n
+#| fig-cap: "Power (P(BF10 > 3)) as a function of the number of subjects and
+#|   the true effect size b1, for each effect prior SD and link function.
+#|   Intercept prior: matched (logistic for logit, normal for probit)."
+#| fig-height: 8
+#| fig-width: 12
+
+matched <- summaries |>
+  filter(
+    (link == "logit"  & dist_b0 == "logistic") |
+    (link == "probit" & dist_b0 == "normal"),
+    true_b1 > 0
+  ) |>
+  mutate(
+    dist_b1  = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
+                      labels = dist_labels),
+    sd_b1    = factor(paste0("sd = ", sd_b1)),
+    n_label  = paste0("n = ", n_subjects, " subj × ", n_trials, " trials")
+  )
+
+ggplot(matched, aes(x = n_subjects, y = P_BF10_gt3,
+                    color = dist_b1, linetype = sd_b1)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+  scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+  scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
+  scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+  scale_linetype_manual("Prior SD",
+    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed", "sd = 1" = "dotted")) +
+  facet_grid(n_trials ~ true_b1 + link,
+             labeller = labeller(
+               link    = link_labels,
+               true_b1 = function(x) paste0("b1 = ", x)
+             )) +
+  labs(title = "Power: P(BF10 > 3) by sample size and true effect (matched intercept prior)",
+       subtitle = "Dotted horizontal line = 0.80 power criterion") +
+  base_theme()
+```
+
+### Power by n_trials
+
+```{r}
+#| label: fig-power-trials
+#| fig-cap: "Power as a function of trials per subject, for n_subjects = 60
+#|   and each prior specification."
+#| fig-height: 6
+#| fig-width: 10
+
+matched |>
+  filter(n_subjects == 60) |>
+  ggplot(aes(x = n_trials, y = P_BF10_gt3,
+             color = dist_b1, linetype = sd_b1)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+  scale_x_continuous("Trials per subject", breaks = c(20, 50, 100)) +
+  scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
+  scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+  scale_linetype_manual("Prior SD",
+    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed", "sd = 1" = "dotted")) +
+  facet_grid(link ~ true_b1,
+             labeller = labeller(
+               link    = link_labels,
+               true_b1 = function(x) paste0("b1 = ", x)
+             )) +
+  labs(title = "Power by trials per subject (n_subjects = 60, matched intercept prior)") +
+  base_theme()
+```
+
+---
+
+## Results: Specificity Under H0
+
+```{r}
+#| label: fig-specificity
+#| fig-cap: "Specificity (P(BF01 > 3)) under the null (true_b1 = 0) for each
+#|   prior specification and sample size."
+#| fig-height: 6
+#| fig-width: 10
+
+summaries |>
+  filter(
+    true_b1 == 0,
+    (link == "logit"  & dist_b0 == "logistic") |
+    (link == "probit" & dist_b0 == "normal")
+  ) |>
+  mutate(
+    dist_b1 = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
+                     labels = dist_labels),
+    sd_b1   = factor(paste0("sd = ", sd_b1))
+  ) |>
+  ggplot(aes(x = n_subjects, y = P_BF01_gt3,
+             color = dist_b1, linetype = sd_b1)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+  scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
+  scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+  scale_linetype_manual("Prior SD",
+    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed", "sd = 1" = "dotted")) +
+  facet_grid(n_trials ~ link,
+             labeller = labeller(link = link_labels,
+                                 n_trials = function(x) paste0(x, " trials"))) +
+  labs(title = "Specificity under H0: P(BF01 > 3)",
+       subtitle = "Matched intercept prior (sd_b0 = 0.75)") +
+  base_theme()
+```
+
+---
+
+## Results: Sensitivity to Prior Family
+
+```{r}
+#| label: fig-prior-sensitivity
+#| fig-cap: "Comparison of power across prior families at the same sd_b1 = 0.25,
+#|   showing how much the choice of prior family matters."
+#| fig-height: 6
+#| fig-width: 10
+
+summaries |>
+  filter(
+    sd_b1 == 0.25,
+    (link == "logit"  & dist_b0 == "logistic") |
+    (link == "probit" & dist_b0 == "normal"),
+    true_b1 > 0
+  ) |>
+  mutate(
+    dist_b1 = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
+                     labels = dist_labels)
+  ) |>
+  ggplot(aes(x = true_b1, y = P_BF10_gt3, color = dist_b1)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+  scale_x_continuous("True effect b1") +
+  scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
+  scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+  facet_grid(n_trials ~ n_subjects + link,
+             labeller = labeller(
+               link       = link_labels,
+               n_subjects = function(x) paste0(x, " subj"),
+               n_trials   = function(x) paste0(x, " trials")
+             )) +
+  labs(title = "Sensitivity to prior family (sd_b1 = 0.25, matched intercept prior)") +
+  base_theme()
+```
+
+---
+
+## Results: Matched vs. Misfit Intercept Prior
+
+```{r}
+#| label: fig-misfit-bf
+#| fig-cap: "Effect of intercept prior misfit on power for the logit link:
+#|   matched (Logistic) vs. misfit (Normal) intercept prior."
+#| fig-height: 6
+#| fig-width: 10
+
+summaries |>
+  filter(
+    link    == "logit",
+    dist_b1 == "logistic",
+    sd_b1   == 0.25,
+    true_b1 > 0
+  ) |>
+  mutate(
+    dist_b0 = factor(dist_b0, levels = c("logistic", "normal"),
+                     labels = c("Logistic (matched)", "Normal (misfit)"))
+  ) |>
+  ggplot(aes(x = true_b1, y = P_BF10_gt3, color = dist_b0)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+  scale_x_continuous("True effect b1") +
+  scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
+  scale_color_viridis_d("Intercept prior", option = "D", end = 0.7) +
+  facet_grid(n_trials ~ n_subjects,
+             labeller = labeller(
+               n_subjects = function(x) paste0(x, " subjects"),
+               n_trials   = function(x) paste0(x, " trials")
+             )) +
+  labs(title = "Effect of intercept prior misfit on power (logit link, sd_b1 = 0.25)") +
+  base_theme()
+```
+
+---
+
+## Summary Table
+
+```{r}
+#| label: tbl-summary
+#| tbl-cap: "Power at 80% criterion: minimum n_subjects required to achieve
+#|   P(BF10 > 3) >= 0.80, for each prior specification and true effect size
+#|   (n_trials = 50, matched intercept prior)."
+
+summaries |>
+  filter(
+    n_trials == 50,
+    (link == "logit"  & dist_b0 == "logistic") |
+    (link == "probit" & dist_b0 == "normal"),
+    true_b1 > 0
+  ) |>
+  group_by(link, dist_b1, sd_b1, true_b1) |>
+  summarise(
+    min_n_80pct = {
+      n_meeting <- n_subjects[P_BF10_gt3 >= 0.80]
+      if (length(n_meeting) > 0) min(n_meeting) else NA_integer_
+    },
+    .groups = "drop"
+  ) |>
+  mutate(
+    dist_b1 = factor(dist_b1, levels = c("normal", "logistic", "cauchy"),
+                     labels = dist_labels),
+    link    = factor(link, labels = link_labels)
+  ) |>
+  pivot_wider(names_from = true_b1, values_from = min_n_80pct,
+              names_prefix = "b1 = ") |>
+  knitr::kable(caption = "Minimum n_subjects for 80% power (n_trials = 50)")
+```
+
+---
+
+## Recommendations
+
+Based on the BF calibration results:
+
+1. **Prior family matters less than prior scale:** The Logistic and Normal
+   prior families produce very similar BF calibration at the same `sd_b1`.
+   The Cauchy prior tends to reduce power slightly due to heavier tails.
+
+2. **Recommended default:** `sd_b1 = 0.25` with either Logistic (logit link)
+   or Normal (probit link) prior provides a good balance of power and
+   specificity for typical cognitive psychology effect sizes (b1 = 0.25–0.75).
+
+3. **Intercept prior misfit has minimal impact** on BF calibration when
+   `sd_b0 = 0.75`, confirming that the main priority is matching the
+   effect prior scale to the expected range of effects.
+
+4. **Sample size requirements:** To achieve 80% power for a medium effect
+   (b1 = 0.50, ~20 percentage points) with 50 trials per condition:
+   approximately 60 subjects are needed with `sd_b1 = 0.25`.
+
+---
+
+## References
+
+Oberauer, K. (2019). Working memory capacity limits memory for bindings.
+*Journal of Cognition, 2*. https://doi.org/10.5334/joc.86
+
+Rouder, J. N., Morey, R. D., Speckman, P. L., & Province, J. M. (2012).
+Default Bayes factors for ANOVA designs. *Journal of Mathematical
+Psychology, 56*, 356–374. https://doi.org/10.1016/j.jmp.2012.08.001
