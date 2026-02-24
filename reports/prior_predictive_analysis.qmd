@@ -11,22 +11,42 @@ author:
     affiliation: University of Lucerne
 date: today
 format:
-  docx:
-    number-sections: false
-  pdf:
-    toc: false
-    toc-depth: 3
   html:
     toc: true
     toc-depth: 3
     code-fold: true
     embed-resources: true
+  pdf:
+    toc: false
+    toc-depth: 3
+  docx:
+    number-sections: false
 execute:
   echo: false
   warning: false
   message: false
 bibliography: references.bib
 csl: apa.csl
+abstract: |
+  Bayesian inference for binomial generalized linear models (GLMs) requires
+  priors on the regression coefficients, but no principled defaults exist for
+  logistic or probit regression. We derive recommendations via two
+  complementary approaches. First, we exploit the probability integral
+  transform to identify *matched priors* — prior distributions whose family
+  mirrors the link function — that induce an exactly uniform distribution on
+  the success-probability scale. Specifically, a Logistic(0, 1) prior on
+  the logit scale and a Normal(0, 1) prior on the probit scale both yield
+  Uniform(0, 1) on the probability scale. Second, we characterise prior
+  predictive distributions across 720 factorial combinations of link
+  function, prior family, and prior scale via large-scale simulation.
+  We recommend matched intercept priors at scale 0.75 (< 10% floor/ceiling mass)
+  and Normal or Logistic effect priors at scale 0.25 (90th percentile of
+  |δp| ≈ 0.20) for experiments in cognitive psychology. Cauchy priors are
+  discouraged due to heavy tails that assign implausible prior probability
+  to large effects. For random-effects models, we recommend Exponential(4)
+  hyperpriors on between-subject SDs instead of the brms default
+  half-Student-t(3, 0, 2.5), which concentrates excessive mass near the
+  floor/ceiling boundary. Ready-to-use brms prior specifications are provided.
 ---
 
 ```{r}
@@ -259,20 +279,28 @@ $P(p < 0.05 \text{ or } p > 0.95) \leq 0.10$. Under this criterion,
 
 @fig-3-delta-p shows how the choice of $\text{sd}_{b_1}$ translates into implied
 effect sizes on the probability scale ($\delta p$, signed), holding the intercept
-prior fixed at the recommended $\text{Logistic}(0, 0.75)$.
+prior fixed at the link-matched recommended prior ($\text{Logistic}(0, 0.75)$
+for the logit link; $\text{Normal}(0, 0.75)$ for the probit link).
 
 ```{r}
 #| label: fig-3-delta-p
 #| fig-cap: "Density ridges of the prior predictive distribution of delta_p
 #|   (signed effect size on probability scale) for each effect prior SD (y-axis
 #|   rows), colour-coded by prior family (Normal, Logistic, Cauchy), and
-#|   faceted by link function. Intercept prior fixed at Logistic(0, 0.75).
+#|   faceted by link function. Intercept prior fixed at the matched recommended
+#|   prior per link: Logistic(0, 0.75) for logit, Normal(0, 0.75) for probit.
 #|   Solid vertical line at 0; dotted lines at +/-0.10, +/-0.20, +/-0.30."
 #| fig-height: 10
 #| fig-width: 10
 
+# Use the link-matched recommended intercept prior for each link:
+# Logistic(0,0.75) for logit, Normal(0,0.75) for probit
 fig2_draws <- draws_long |>
-  filter(dist_b0 == "logistic", sd_b0 == 0.75)
+  filter(
+    (link == "logit"  & dist_b0 == "logistic") |
+    (link == "probit" & dist_b0 == "normal"),
+    sd_b0 == 0.75
+  )
 
 plot_delta_p_ridges(fig2_draws, sd_b0_focus = 0.75)
 ```
@@ -314,6 +342,13 @@ for between-subject heterogeneity. Specifying a complete Bayesian model
 therefore also requires priors on
 the random-effect SDs $\sigma_u$ (intercept) and $\sigma_v$ (slope). Three
 candidate hyperpriors are compared:
+
+- **$\text{half-student\_t}(3, 0, 2.5)$**: the brms default; a half-Student-$t$ with 3
+  degrees of freedom and scale 2.5, placing a heavy right tail on $\sigma_u$.
+- **$\text{Gamma}(2, 4)$**: mean $= 0.5$, with approximately 71% of mass below
+  $\sigma_u = 0.5$ logit units; a moderately regularising prior.
+- **$\text{Exponential}(4)$**: mean $= 0.25$, with approximately 86% of mass below
+  $\sigma_u = 0.5$; the strongest concentration near zero of the three.
 
 The key question is: **what does each hyperprior imply about success
 probabilities and effect heterogeneity on the probability scale?**
@@ -486,6 +521,7 @@ the `prior` argument of `brm()`:
 # Logit link (logistic regression)
 # Intercept: Logistic(0, 0.75) — matched prior, < 10% floor/ceiling mass
 # Effect:    Logistic(0, 0.25) — 90th percentile of |delta_p| ~ 0.20
+# Note: brms accepts logistic() as a valid distribution name in prior()
 logit_priors <- c(
   brms::prior(logistic(0, 0.75), class = Intercept),
   brms::prior(logistic(0, 0.25), class = b)
