@@ -365,3 +365,112 @@ fit_and_get_bf_sd_re <- function(dat,
   if (!is.finite(bf10)) return(NA_real_)
   as.numeric(bf10)
 }
+
+
+# ==============================================================================
+# Bayesian updating helpers for detection-rate uncertainty
+# ==============================================================================
+
+#' Classify BF10 values into three outcome categories
+#'
+#' Given a vector of BF10 values from simulation replications, count how many
+#' fall into each of three mutually exclusive categories at a given threshold:
+#' H1 detected (BF10 > threshold), H0 detected (BF10 < 1/threshold), and
+#' inconclusive (neither).
+#'
+#' @param bf10      Numeric vector. BF10 values (one per replication). NAs are
+#'                  excluded before counting.
+#' @param threshold Numeric. BF threshold (e.g., 3 or 10).
+#'
+#' @return Named integer vector: n_valid, n_h1, n_h0, n_inconclusive.
+compute_bf_counts <- function(bf10, threshold = 3) {
+  valid   <- !is.na(bf10)
+  bf_val  <- bf10[valid]
+  n_valid <- length(bf_val)
+
+  n_h1           <- sum(bf_val > threshold)
+  n_h0           <- sum(bf_val < 1 / threshold)
+  n_inconclusive <- n_valid - n_h1 - n_h0
+
+  c(n_valid = as.integer(n_valid),
+    n_h1    = as.integer(n_h1),
+    n_h0    = as.integer(n_h0),
+    n_inconclusive = as.integer(n_inconclusive))
+}
+
+
+#' Beta-Binomial posterior summary for a detection rate
+#'
+#' Applies conjugate updating: Prior Beta(alpha0, beta0) + k successes out of
+#' n trials yields Posterior Beta(alpha0 + k, beta0 + n - k). Returns the
+#' posterior parameters, mean, median, and a 95% equal-tailed credible interval.
+#'
+#' @param k      Integer. Number of successes (e.g., BF10 > threshold).
+#' @param n      Integer. Total number of valid replications.
+#' @param alpha0 Numeric. Prior alpha parameter. Default 3.
+#' @param beta0  Numeric. Prior beta parameter. Default 3.
+#'
+#' @return Named numeric vector: post_alpha, post_beta, post_mean,
+#'   post_median, ci_lower, ci_upper.
+beta_posterior_summary <- function(k, n, alpha0 = 3, beta0 = 3) {
+  k <- unname(k)
+  n <- unname(n)
+  post_alpha <- alpha0 + k
+  post_beta  <- beta0 + (n - k)
+
+  c(post_alpha  = post_alpha,
+    post_beta   = post_beta,
+    post_mean   = post_alpha / (post_alpha + post_beta),
+    post_median = qbeta(0.5,   post_alpha, post_beta),
+    ci_lower    = qbeta(0.025, post_alpha, post_beta),
+    ci_upper    = qbeta(0.975, post_alpha, post_beta))
+}
+
+
+#' Dirichlet-Multinomial posterior summary for three-category BF outcomes
+#'
+#' Three mutually exclusive categories: H1 detected (BF10 > threshold),
+#' H0 detected (BF10 < 1/threshold), and inconclusive (neither).
+#'
+#' Conjugate update: Dirichlet(alpha0) + counts -> Dirichlet(alpha0 + counts).
+#' Default prior Dirichlet(1, 3, 1) places most prior mass on the inconclusive
+#' category (prior mean 60%) and less on decisive evidence (20% each).
+#' Effective prior sample size = 5.
+#'
+#' Each category's marginal posterior is Beta:
+#'   theta_j | data ~ Beta(alpha_j, sum(alpha) - alpha_j)
+#'
+#' @param n_h1           Integer. Count of H1 detected replications.
+#' @param n_h0           Integer. Count of H0 detected replications.
+#' @param n_inconclusive Integer. Count of inconclusive replications.
+#' @param alpha0         Numeric vector of length 3. Dirichlet prior
+#'   concentration parameters in order (H1, inconclusive, H0).
+#'   Default c(1, 3, 1).
+#'
+#' @return Named numeric vector with posterior alpha parameters and marginal
+#'   summaries (mean, median, ci_lower, ci_upper) for each category.
+dirichlet_posterior_summary <- function(n_h1, n_h0, n_inconclusive,
+                                        alpha0 = c(1, 3, 1)) {
+  counts     <- c(unname(n_h1), unname(n_inconclusive), unname(n_h0))
+  post_alpha <- alpha0 + counts
+  alpha_sum  <- sum(post_alpha)
+
+  # Marginal Beta summary for one category
+  marginal_summary <- function(a_j, alpha_sum, prefix) {
+    b_j <- alpha_sum - a_j
+    setNames(
+      c(a_j / alpha_sum,
+        qbeta(0.5,   a_j, b_j),
+        qbeta(0.025, a_j, b_j),
+        qbeta(0.975, a_j, b_j)),
+      paste0(prefix, c("_mean", "_median", "_ci_lower", "_ci_upper"))
+    )
+  }
+
+  c(post_alpha_h1  = post_alpha[1],
+    post_alpha_inc = post_alpha[2],
+    post_alpha_h0  = post_alpha[3],
+    marginal_summary(post_alpha[1], alpha_sum, "h1"),
+    marginal_summary(post_alpha[2], alpha_sum, "inc"),
+    marginal_summary(post_alpha[3], alpha_sum, "h0"))
+}

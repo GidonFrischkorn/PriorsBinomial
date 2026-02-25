@@ -37,13 +37,27 @@ library(ggplot2)
 library(viridis)
 library(here)
 
+source(here("R", "bf_helpers.R"))
+
 summaries <- readRDS(here("output", "bf_calibration_summaries.rds"))
+
+posteriors <- tryCatch(
+  readRDS(here("output", "bf_calibration_posteriors.rds")),
+  error = function(e) NULL
+)
+posteriors_available <- !is.null(posteriors)
 
 re_summaries <- tryCatch(
   readRDS(here("output", "bf_calibration_re_summaries.rds")),
   error = function(e) NULL
 )
 re_results_available <- !is.null(re_summaries)
+
+re_posteriors <- tryCatch(
+  readRDS(here("output", "bf_calibration_re_posteriors.rds")),
+  error = function(e) NULL
+)
+re_posteriors_available <- !is.null(re_posteriors)
 
 # Factor labels
 dist_labels <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
@@ -60,299 +74,618 @@ base_theme <- function() {
 
 ## Introduction
 
-Goal 2 examines how the choice of prior specification affects the behavior of
-Bayes factors (BFs) in binomial GLMs. Specifically, we ask:
+The prior predictive analysis established that matched priors — Logistic(0, 0.75)
+for the logit link and Normal(0, 0.75) for the probit link — produce well-behaved
+distributions on the probability scale, and that effect priors at
+$\text{sd}_{b_1} = 0.25$ concentrate prior mass on substantively plausible effect
+sizes. However, good prior predictive behavior is a necessary condition for sound
+Bayesian inference, not a sufficient one. We also need to know how these priors
+perform when used for hypothesis testing with Bayes Factors.
 
-1. **Power:** Given a true effect of size $b_1$, how often does the BF exceed
-   the evidence threshold (BF10 > 3 or BF10 > 10)?
-2. **Specificity:** When the null is true ($b_1 = 0$), how often does the BF
-   correctly support the null (BF01 > 3)?
-3. **Sensitivity to prior:** How much do results change across the three prior
-   families (Normal, Logistic, Cauchy)?
-4. **Matched vs. misfit priors:** Does using the matched intercept prior (from
-   Goal 1) matter for BF calibration?
+Prior specification directly affects discovery rates. A prior that is too wide
+spreads probability mass across implausible effect sizes, diluting the evidence
+for real effects and reducing the power of the Bayes Factor to detect them. A
+prior that is too narrow may spuriously favor or disfavor the null. The present
+simulation tests whether the priors recommended in the prior predictive analysis
+lead to well-calibrated inference — adequate power when effects exist, and high
+specificity when they do not.
 
-### Design
+We address four questions:
 
-The simulation crosses the following factors
-(see `scripts/03_BFCalibration.R`):
+1. **Do the recommended priors provide adequate power** to detect effects across
+   realistic sample sizes and numbers of trials?
+2. **Do they protect against false evidence** — that is, do they correctly support
+   the null hypothesis when there is no effect?
+3. **How sensitive is the Bayes Factor to the prior family?** Does it matter whether
+   researchers use a Normal, Logistic, or Cauchy prior, or is the prior scale the
+   key decision?
+4. **Does the matched-prior principle carry over to inference?** The prior
+   predictive analysis showed that matched intercept priors produce better-behaved
+   distributions on the probability scale — but does using a mismatched intercept
+   prior actually harm Bayes Factor calibration?
 
-- **Intercept prior family** (`dist_b0`): Logistic (matched for logit),
-  Normal (misfit for logit)
-- **Effect prior family** (`dist_b1`): Normal, Logistic, Cauchy
-- **Effect prior SD** (`sd_b1`): 0.25, 0.50
-- **True effect size** (`true_b1`): 0.00, 0.05, 0.10, 0.20, 0.50
-- **Number of subjects** (`n_subjects`): 30, 60, 100
-- **Trials per subject** (`n_trials`): 20, 50
+Finally, we extend the analysis to within-subjects designs with correlated random
+effects, asking whether the choice of random-effects hyperprior — which the prior
+predictive analysis showed affects the distribution of subject-level probabilities —
+also affects inferential performance.
 
-This yields **360 conditions** with **100 replications** each.
+### Simulation Design
 
-A second simulation (`scripts/03b_BFCalibration_RE.R`) specifically investigates
-the effect of the **random-effects hyperprior** on BF calibration. It uses a
-structurally different data-generating model — a **within-subjects** design with
-**correlated random intercepts and slopes** — and fixes the fixed-effects priors
-at the matched configuration from Script 03:
+We simulated data across a range of realistic experimental scenarios. The true
+effect size ranged from $b_1 = 0$ (no effect) to $b_1 = 0.50$ on the logit scale,
+covering the span from a null effect through a large effect in cognitive
+experiments (on the probability scale with a typical 50% baseline, $b_1 = 0.50$
+corresponds to roughly 24 percentage points between conditions). Sample sizes
+ranged from 30 to 100 subjects, and each subject contributed either 20 or 50
+trials. We crossed these data-generating factors with three effect prior families
+(Normal, Logistic, Cauchy) at two scale values ($\text{sd}_{b_1} = 0.25$ and
+$0.50$), and two intercept priors (matched Logistic and misfit Normal, both at
+$\text{sd}_{b_0} = 0.75$). This produced 360 conditions with 100 replications
+each (see `scripts/03_BFCalibration.R`).
 
-- **RE hyperprior** (`sd_prior_re`): Default Student-*t*(3, 0, 2.5), Gamma(2, 4),
-  Exponential(4) — this is the sole design factor
-- **True effect size** (`true_b1`): 0.00, 0.05, 0.10, 0.20, 0.50
-- **Number of subjects** (`n_subjects`): 30, 60, 100
-- **Trials per subject** (`n_trials`): 20, 50
-- Fixed: Logistic intercept prior ($\text{sd}_{b_0} = 0.75$), Normal effect
-  prior ($\text{sd}_{b_1} = 0.25$); true intercept sampled per replication
-  from $\text{Uniform}(0.4, 0.9)$ on the probability scale (same as Script 03)
+A second simulation (`scripts/03b_BFCalibration_RE.R`) specifically investigated
+the random-effects hyperprior. It used a within-subjects design with correlated
+random intercepts and slopes, holding the fixed-effects priors at the recommended
+matched configuration and varying only the hyperprior on the random-effects SDs
+across three candidates: the brms default Student-*t*(3, 0, 2.5), Gamma(2, 4),
+and Exponential(4). This produced 90 conditions with 100 replications each. We
+return to these results in @sec-re-hyperprior.
 
-This yields **90 conditions** with **100 replications** each.
+### How We Computed Bayes Factors
 
-### Model
+All models used the logit link (the probit link is expected to produce analogous
+results via the matched-prior principle established in the prior predictive
+analysis). To ensure that results generalize across realistic baseline accuracies,
+we did not fix the true intercept: in each replication, $b_0$ was sampled from
+$\text{Uniform}(0.4, 0.9)$ on the probability scale — the range spanning
+two-alternative to four-alternative forced choice — and transformed to the logit
+scale. Each simulated dataset included subject-level random intercepts
+($u_i \sim \mathcal{N}(0, 0.25)$) to mimic between-subject heterogeneity.
 
-All models use the **logit link** (the probit link is expected to produce
-analogous results via the matched-prior principle established in Goal 1).
-The true intercept $b_0$ is **not** fixed: in each replication it is sampled
-from $\text{Uniform}(0.4,\, 0.9)$ on the probability scale and then
-transformed to the logit scale. This covers the range of realistic baseline
-accuracies in cognitive experiments (two-alternative to four-alternative
-forced choice).
+The analysis model mirrored this structure: a binomial GLMM with one random
+intercept per subject, fitted with brms [@burkner2017], with the intercept prior
+SD fixed at 0.75 and an $\text{Exponential}(4)$ hyperprior on the random-intercept
+SD. Bayes Factors were computed via the Savage–Dickey density ratio
+[@wagenmakers2018], which compares how plausible a zero effect was before versus
+after seeing the data:
+$\text{BF}_{10} = \pi(b_1 = 0) / p(b_1 = 0 \mid \text{data})$.
+When the posterior concentrates away from zero (i.e., the data suggest an effect),
+$\text{BF}_{10}$ exceeds 1 and favors H1; when the posterior piles up at zero
+(i.e., the data are consistent with no effect), $\text{BF}_{10}$ falls below 1
+and favors H0.
 
-Each simulated dataset includes **subject-level random intercepts**
-$u_i \sim \mathcal{N}(0, 0.25)$ to mimic between-subject heterogeneity.
-The analysis model mirrors this structure: a binomial GLMM with one
-random intercept per subject, fitted with brms [@burkner2017].
+To quantify uncertainty in detection rates given the finite number of replications,
+we applied Bayesian conjugate updating (see
+@sec-appendix-uncertainty for details). All error
+bars in the figures below show 95% credible intervals from this procedure.
 
-- Intercept prior SD fixed at 0.75 (recommended by Goal 1).
-- Hyperprior on the random-intercept SD: $\text{Exponential}(4)$.
 
-Bayes factors are computed via the **Savage–Dickey density ratio**
-[@wagenmakers2018]: $\text{BF}_{10} = \pi(b_1 = 0) \,/\, p(b_1 = 0 \mid \text{data})$,
-where the prior density is evaluated analytically and the posterior density
-is estimated by kernel density estimation (KDE with Silverman's bandwidth).
+## How Much Data Do Bayes Factors Need?
 
----
-
-## Results: Power (H1 true)
+The most fundamental question for study planning is: given a real effect, how
+many participants and trials are needed for the Bayes Factor to detect it? We
+examine power — the probability that BF10 exceeds 3, providing at least
+moderate evidence for the alternative — across the full range of sample sizes,
+trial counts, and prior specifications.
 
 ### Power by sample size and effect size
 
 ```{r}
 #| label: fig-power-n
-#| fig-cap: "Power (P(BF10 > 3)) as a function of the number of subjects and
-#|   the true effect size, for each effect prior family and SD.
-#|   Intercept prior: Logistic with sd_b0 = 0.75."
+#| fig-cap: "Power to detect effects increases with sample size and effect
+#|   magnitude. With 50 trials per subject and the recommended effect prior
+#|   (sd = 0.25), power exceeds 80% at N = 30 for effects of b1 >= 0.20. The
+#|   tighter prior (sd = 0.25, solid lines) yields slightly higher power than
+#|   the wider prior (sd = 0.50, dashed), but the difference is small compared
+#|   to the effect of sample size and true effect. Prior family (color) has
+#|   minimal impact. Error bars: 95% credible intervals."
 #| fig-height: 6
 #| fig-width: 10
 
-matched <- summaries |>
-  filter(
-    dist_b0 == "logistic",
-    true_b1 > 0
-  ) |>
-  mutate(
-    dist_b1  = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
-                      labels = c("Cauchy", "Normal", "Logistic")),
-    sd_b1    = factor(paste0("sd = ", sd_b1))
-  )
+if (posteriors_available) {
+  matched <- posteriors |>
+    filter(
+      dist_b0 == "logistic",
+      true_b1 > 0,
+      threshold == 3
+    ) |>
+    mutate(
+      dist_b1  = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                        labels = c("Cauchy", "Normal", "Logistic")),
+      sd_b1    = factor(paste0("sd = ", sd_b1))
+    )
 
-ggplot(matched, aes(x = n_subjects, y = P_BF10_gt3,
-                    color = dist_b1, linetype = sd_b1)) +
-  geom_line(linewidth = 0.8) +
-  geom_point(size = 2) +
-  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
-  scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
-  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
-  scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
-  scale_linetype_manual("Prior SD",
-    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
-  facet_grid(n_trials ~ true_b1,
-             labeller = labeller(
-               true_b1  = function(x) paste0("b1 = ", x),
-               n_trials = function(x) paste0(x, " trials")
-             )) +
-  labs(title = "Power: P(BF10 > 3) by sample size and true effect",
-       subtitle = "Matched intercept prior (Logistic, sd = 0.75); dotted line = 80% power") +
-  base_theme()
+  ggplot(matched, aes(x = n_subjects, y = power_post_mean,
+                      color = dist_b1, linetype = sd_b1)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = power_ci_lower, ymax = power_ci_upper),
+                  width = 3, linewidth = 0.4, alpha = 0.6) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+    scale_linetype_manual("Prior SD",
+      values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+    facet_grid(n_trials ~ true_b1,
+               labeller = labeller(
+                 true_b1  = function(x) paste0("b1 = ", x),
+                 n_trials = function(x) paste0(x, " trials")
+               )) +
+    labs(title = "Power: P(BF10 > 3) by sample size and true effect",
+         subtitle = "Matched intercept prior (Logistic, sd = 0.75); dotted line = 80% power") +
+    base_theme()
+} else {
+  matched <- summaries |>
+    filter(dist_b0 == "logistic", true_b1 > 0) |>
+    mutate(
+      dist_b1  = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                        labels = c("Cauchy", "Normal", "Logistic")),
+      sd_b1    = factor(paste0("sd = ", sd_b1))
+    )
+
+  ggplot(matched, aes(x = n_subjects, y = P_BF10_gt3,
+                      color = dist_b1, linetype = sd_b1)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+    scale_linetype_manual("Prior SD",
+      values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+    facet_grid(n_trials ~ true_b1,
+               labeller = labeller(
+                 true_b1  = function(x) paste0("b1 = ", x),
+                 n_trials = function(x) paste0(x, " trials")
+               )) +
+    labs(title = "Power: P(BF10 > 3) by sample size and true effect",
+         subtitle = "Matched intercept prior (Logistic, sd = 0.75); dotted line = 80% power") +
+    base_theme()
+}
 ```
 
-@fig-power-n shows that power increases with both sample size and true
-effect size, as expected. The tighter prior ($\text{sd} = 0.25$) yields
-slightly higher power than $\text{sd} = 0.50$ on average, because the
-narrower prior concentrates more density near the true effect and less at
-extreme values. However, this difference is practically negligible: power is
-at or near ceiling for both effect sizes with 50 trials and $\text{sd} = 0.25$,
-exceeding 97% even at the smallest sample size ($n = 30$). Differences between
-the three prior families are small relative to the effect of prior SD. The
-more informative variation appears at 20 trials per subject, where power is
-lower and sample-size effects become more visible.
+@fig-power-n shows a clear and encouraging pattern. For the larger effects
+examined here ($b_1 \geq 0.20$), power reaches or exceeds 80% even at the
+smallest sample size ($n = 30$) when subjects complete 50 trials. The tighter
+prior ($\text{sd} = 0.25$, solid lines) yields slightly higher power than the
+wider alternative ($\text{sd} = 0.50$, dashed), because concentrating the prior
+near plausible effect sizes makes the Savage–Dickey ratio more sensitive to
+genuine shifts away from zero. However, this advantage is modest — the dominant
+drivers of power are the true effect magnitude and the amount of data, not the
+prior specification.
 
-### Power by n_trials
+Two additional patterns are worth noting. First, the three prior families (Normal,
+Logistic, Cauchy) produce nearly overlapping power curves, foreshadowing a key
+conclusion: the choice of prior *family* matters far less than the choice of
+prior *scale*. Second, the difference between 20 and 50 trials per subject is
+particularly informative at smaller effects, where 20 trials may not suffice.
+This suggests that increasing trials per subject can be at least as effective as
+recruiting more participants.
+
+### The role of trials per subject
+
+Power also depends strongly on how many trials each subject completes. @fig-power-trials
+isolates this factor for a mid-range sample size ($n = 60$).
 
 ```{r}
 #| label: fig-power-trials
-#| fig-cap: "Power as a function of trials per subject, for n_subjects = 60
-#|   and each prior specification (matched Logistic intercept prior)."
+#| fig-cap: "Increasing from 20 to 50 trials per subject substantially
+#|   improves power, particularly for smaller effects. Shown for N = 60
+#|   subjects with matched Logistic intercept prior. Error bars: 95%
+#|   credible intervals."
 #| fig-height: 5
 #| fig-width: 10
 
-matched |>
-  filter(n_subjects == 60) |>
-  ggplot(aes(x = n_trials, y = P_BF10_gt3,
-             color = dist_b1, linetype = sd_b1)) +
-  geom_line(linewidth = 0.8) +
-  geom_point(size = 2) +
-  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
-  scale_x_continuous("Trials per subject", breaks = c(20, 50)) +
-  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
-  scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
-  scale_linetype_manual("Prior SD",
-    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
-  facet_wrap(~ true_b1,
-             labeller = labeller(
-               true_b1 = function(x) paste0("b1 = ", x)
-             )) +
-  labs(title = "Power by trials per subject (n_subjects = 60, matched intercept prior)") +
-  base_theme()
+if (posteriors_available) {
+  posteriors |>
+    filter(
+      dist_b0 == "logistic",
+      true_b1 > 0,
+      threshold == 3,
+      n_subjects == 60
+    ) |>
+    mutate(
+      dist_b1  = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                        labels = c("Cauchy", "Normal", "Logistic")),
+      sd_b1    = factor(paste0("sd = ", sd_b1))
+    ) |>
+    ggplot(aes(x = n_trials, y = power_post_mean,
+               color = dist_b1, linetype = sd_b1)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = power_ci_lower, ymax = power_ci_upper),
+                  width = 2, linewidth = 0.4, alpha = 0.6) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("Trials per subject", breaks = c(20, 50)) +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+    scale_linetype_manual("Prior SD",
+      values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+    facet_wrap(~ true_b1,
+               labeller = labeller(
+                 true_b1 = function(x) paste0("b1 = ", x)
+               )) +
+    labs(title = "Power by trials per subject (n_subjects = 60, matched intercept prior)") +
+    base_theme()
+} else {
+  matched |>
+    filter(n_subjects == 60) |>
+    ggplot(aes(x = n_trials, y = P_BF10_gt3,
+               color = dist_b1, linetype = sd_b1)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("Trials per subject", breaks = c(20, 50)) +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+    scale_linetype_manual("Prior SD",
+      values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+    facet_wrap(~ true_b1,
+               labeller = labeller(
+                 true_b1 = function(x) paste0("b1 = ", x)
+               )) +
+    labs(title = "Power by trials per subject (n_subjects = 60, matched intercept prior)") +
+    base_theme()
+}
 ```
 
-Increasing the number of trials per subject from 20 to 50 substantially
-improves power for all prior configurations. This gain is expected because
-more trials per subject reduce within-subject uncertainty, which in turn
-sharpens the posterior for the fixed-effect parameter $b_1$.
+Increasing trials from 20 to 50 per subject substantially improves power across
+all prior configurations. The mechanism is straightforward: more trials per
+subject reduce within-subject variability, which sharpens the posterior for the
+fixed-effect parameter $b_1$ and makes the Bayes Factor more decisive. For
+researchers designing studies, this underscores a practical point — collecting
+more trials from each participant (e.g., by extending the experimental session)
+can be as effective as recruiting additional participants, and is often easier
+to implement.
 
----
 
-## Results: Specificity Under H0
+## Do These Priors Produce False Evidence?
+
+Good power is only valuable if the Bayes Factor does not also produce spurious
+evidence for effects that do not exist. We therefore examine specificity: when
+the null is true ($b_1 = 0$), how often does the BF correctly support H0 (i.e.,
+BF01 > 3)?
 
 ```{r}
 #| label: fig-specificity
-#| fig-cap: "Specificity (P(BF01 > 3)) under the null (true_b1 = 0) for each
-#|   prior specification and sample size (matched Logistic intercept prior)."
+#| fig-cap: "When no effect exists, the Bayes Factor correctly supports the
+#|   null in the large majority of replications. Wider priors (sd = 0.50,
+#|   dashed) yield slightly higher specificity because they place less
+#|   density at exactly zero, making the Savage-Dickey ratio more conservative.
+#|   Prior family has minimal impact. Error bars: 95% credible intervals."
 #| fig-height: 5
 #| fig-width: 10
 
-summaries |>
-  filter(
-    true_b1 == 0,
-    dist_b0 == "logistic"
-  ) |>
-  mutate(
-    dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
-                     labels = c("Cauchy", "Normal", "Logistic")),
-    sd_b1   = factor(paste0("sd = ", sd_b1))
-  ) |>
-  ggplot(aes(x = n_subjects, y = P_BF01_gt3,
-             color = dist_b1, linetype = sd_b1)) +
-  geom_line(linewidth = 0.8) +
-  geom_point(size = 2) +
-  scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
-  scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
-  scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
-  scale_linetype_manual("Prior SD",
-    values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
-  facet_wrap(~ n_trials,
-             labeller = labeller(
-               n_trials = function(x) paste0(x, " trials")
-             )) +
-  labs(title = "Specificity under H0: P(BF01 > 3)",
-       subtitle = "Matched intercept prior (Logistic, sd = 0.75)") +
-  base_theme()
+if (posteriors_available) {
+  posteriors |>
+    filter(
+      true_b1 == 0,
+      dist_b0 == "logistic",
+      threshold == 3
+    ) |>
+    mutate(
+      dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                       labels = c("Cauchy", "Normal", "Logistic")),
+      sd_b1   = factor(paste0("sd = ", sd_b1))
+    ) |>
+    ggplot(aes(x = n_subjects, y = spec_post_mean,
+               color = dist_b1, linetype = sd_b1)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = spec_ci_lower, ymax = spec_ci_upper),
+                  width = 3, linewidth = 0.4, alpha = 0.6) +
+    scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+    scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
+    scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+    scale_linetype_manual("Prior SD",
+      values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+    facet_wrap(~ n_trials,
+               labeller = labeller(
+                 n_trials = function(x) paste0(x, " trials")
+               )) +
+    labs(title = "Specificity under H0: P(BF01 > 3)",
+         subtitle = "Matched intercept prior (Logistic, sd = 0.75)") +
+    base_theme()
+} else {
+  summaries |>
+    filter(true_b1 == 0, dist_b0 == "logistic") |>
+    mutate(
+      dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                       labels = c("Cauchy", "Normal", "Logistic")),
+      sd_b1   = factor(paste0("sd = ", sd_b1))
+    ) |>
+    ggplot(aes(x = n_subjects, y = P_BF01_gt3,
+               color = dist_b1, linetype = sd_b1)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+    scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
+    scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+    scale_linetype_manual("Prior SD",
+      values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
+    facet_wrap(~ n_trials,
+               labeller = labeller(
+                 n_trials = function(x) paste0(x, " trials")
+               )) +
+    labs(title = "Specificity under H0: P(BF01 > 3)",
+         subtitle = "Matched intercept prior (Logistic, sd = 0.75)") +
+    base_theme()
+}
 ```
 
-Specificity is generally high across all prior configurations: when the null
-is true ($b_1 = 0$), the BF correctly supports H0 (BF01 > 3) in the large
-majority of replications. The wider prior ($\text{sd} = 0.50$) tends to
-yield slightly higher specificity because it places less prior density at
-exactly zero, making the Savage–Dickey ratio more conservative. Prior family
-has minimal impact on specificity.
+@fig-specificity shows that specificity is reassuringly high across all prior
+configurations. When there is no true effect, the Bayes Factor correctly
+supports H0 (BF01 > 3) in the large majority of replications. The wider prior
+($\text{sd} = 0.50$, dashed lines) yields slightly higher specificity than the
+tighter alternative. This may seem counterintuitive, but it follows directly from
+the Savage–Dickey mechanism: a wider prior places less density at exactly zero,
+so the ratio of prior to posterior density at zero shifts more readily in favor
+of H0 when the data are consistent with no effect.
 
----
+The key take-home is that the recommended priors do not produce misleading
+evidence. Researchers can use $\text{sd}_{b_1} = 0.25$ without worrying that
+it will lead to spurious support for effects that do not exist. Prior family
+again has minimal impact.
 
-## Results: Sensitivity to Prior Family
+Given the negligible role of prior family in both power and specificity, we next
+ask directly: does the choice between Normal, Logistic, and Cauchy priors matter
+at all?
+
+
+## Does the Choice of Prior Family Matter?
+
+A researcher choosing a prior for the effect coefficient faces three common
+options — Normal, Logistic, and Cauchy — that differ in their tail behavior.
+The prior predictive analysis showed that the Cauchy's heavy tails assign
+implausible probability to extreme effects. But does this translate into
+meaningful differences in Bayes Factor performance? @fig-prior-sensitivity
+addresses this question by holding the prior scale constant at
+$\text{sd}_{b_1} = 0.25$ and comparing power across families.
 
 ```{r}
 #| label: fig-prior-sensitivity
-#| fig-cap: "Comparison of power across prior families at sd_b1 = 0.25,
-#|   showing the impact of prior family choice on BF calibration."
+#| fig-cap: "At the same prior scale (sd = 0.25), the three prior families
+#|   produce nearly identical power curves. This holds across all sample sizes,
+#|   trial counts, and effect sizes examined, indicating that the choice of
+#|   prior family is far less consequential than the choice of prior scale.
+#|   Error bars: 95% credible intervals."
 #| fig-height: 6
 #| fig-width: 10
 
-summaries |>
-  filter(
-    sd_b1 == 0.25,
-    dist_b0 == "logistic",
-    true_b1 > 0
-  ) |>
-  mutate(
-    dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
-                     labels = c("Cauchy", "Normal", "Logistic"))
-  ) |>
-  ggplot(aes(x = true_b1, y = P_BF10_gt3, color = dist_b1)) +
-  geom_line(linewidth = 0.8) +
-  geom_point(size = 2) +
-  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
-  scale_x_continuous("True effect b1") +
-  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
-  scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
-  facet_grid(n_trials ~ n_subjects,
-             labeller = labeller(
-               n_subjects = function(x) paste0(x, " subj"),
-               n_trials   = function(x) paste0(x, " trials")
-             )) +
-  labs(title = "Sensitivity to prior family (sd_b1 = 0.25, matched intercept prior)") +
-  base_theme()
+if (posteriors_available) {
+  posteriors |>
+    filter(
+      sd_b1 == 0.25,
+      dist_b0 == "logistic",
+      true_b1 > 0,
+      threshold == 3
+    ) |>
+    mutate(
+      dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                       labels = c("Cauchy", "Normal", "Logistic"))
+    ) |>
+    ggplot(aes(x = true_b1, y = power_post_mean, color = dist_b1)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = power_ci_lower, ymax = power_ci_upper),
+                  width = 0.02, linewidth = 0.4, alpha = 0.6) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("True effect b1") +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+    facet_grid(n_trials ~ n_subjects,
+               labeller = labeller(
+                 n_subjects = function(x) paste0(x, " subj"),
+                 n_trials   = function(x) paste0(x, " trials")
+               )) +
+    labs(title = "Sensitivity to prior family (sd_b1 = 0.25, matched intercept prior)") +
+    base_theme()
+} else {
+  summaries |>
+    filter(sd_b1 == 0.25, dist_b0 == "logistic", true_b1 > 0) |>
+    mutate(
+      dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
+                       labels = c("Cauchy", "Normal", "Logistic"))
+    ) |>
+    ggplot(aes(x = true_b1, y = P_BF10_gt3, color = dist_b1)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("True effect b1") +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
+    facet_grid(n_trials ~ n_subjects,
+               labeller = labeller(
+                 n_subjects = function(x) paste0(x, " subj"),
+                 n_trials   = function(x) paste0(x, " trials")
+               )) +
+    labs(title = "Sensitivity to prior family (sd_b1 = 0.25, matched intercept prior)") +
+    base_theme()
+}
 ```
 
-Holding $\text{sd}_{b_1} = 0.25$ constant, the three prior families
-produce nearly identical power curves across all sample sizes and effect
-sizes. This indicates that the choice of prior family (Normal, Logistic, or
-Cauchy) is far less consequential than the choice of prior scale for BF
-calibration in binomial GLMs.
+The answer is clear: at the same prior scale, the three families produce nearly
+identical power curves across all sample sizes and effect sizes. This is good
+news for practitioners. It means that the recommendation is robust — researchers
+do not need to agonize over whether to use a Normal, Logistic, or Cauchy prior.
+What matters is getting the *scale* right ($\text{sd}_{b_1} \approx 0.25$ for
+typical cognitive psychology effects), not the precise distributional shape. Given
+the prior predictive analysis showed that the Cauchy produces implausibly heavy
+tails, we recommend Normal or Logistic priors on the grounds of prior predictive
+behavior, knowing that BF performance is unaffected by this choice.
 
----
+A similar question arises for the intercept prior: does the matched-prior
+principle — which the prior predictive analysis showed produces cleaner
+distributions on the probability scale — also matter for Bayes Factor calibration?
 
-## Results: Matched vs. Misfit Intercept Prior
+
+## Does the Intercept Prior Affect Bayes Factor Calibration?
+
+The prior predictive analysis established the matched-prior principle: placing
+a Logistic prior on the logit-scale intercept produces a uniform distribution on
+the probability scale, whereas a Normal prior (misfit) concentrates mass
+differently. But does this distinction matter for Bayes Factor calibration?
+@fig-misfit-bf compares power under the matched (Logistic) and misfit (Normal)
+intercept priors, holding the effect prior constant.
 
 ```{r}
 #| label: fig-misfit-bf
-#| fig-cap: "Effect of intercept prior misfit on power: matched (Logistic)
-#|   vs. misfit (Normal) intercept prior, with Logistic effect prior at
-#|   sd_b1 = 0.25."
+#| fig-cap: "Using a mismatched intercept prior (Normal instead of the matched
+#|   Logistic) has negligible impact on power. The two intercept priors produce
+#|   overlapping power curves across all effect sizes, sample sizes, and trial
+#|   counts. This confirms that the intercept prior primarily regularizes the
+#|   baseline probability and does not alter inference about the effect.
+#|   Error bars: 95% credible intervals."
 #| fig-height: 6
 #| fig-width: 10
 
-summaries |>
+if (posteriors_available) {
+  posteriors |>
+    filter(
+      dist_b1 == "logistic",
+      sd_b1   == 0.25,
+      true_b1 > 0,
+      threshold == 3
+    ) |>
+    mutate(
+      dist_b0 = factor(dist_b0, levels = c("logistic", "normal"),
+                       labels = c("Logistic (matched)", "Normal (misfit)"))
+    ) |>
+    ggplot(aes(x = true_b1, y = power_post_mean, color = dist_b0)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = power_ci_lower, ymax = power_ci_upper),
+                  width = 0.02, linewidth = 0.4, alpha = 0.6) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("True effect b1") +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("Intercept prior", option = "D", end = 0.7) +
+    facet_grid(n_trials ~ n_subjects,
+               labeller = labeller(
+                 n_subjects = function(x) paste0(x, " subjects"),
+                 n_trials   = function(x) paste0(x, " trials")
+               )) +
+    labs(title = "Effect of intercept prior misfit on power (logit link, sd_b1 = 0.25)") +
+    base_theme()
+} else {
+  summaries |>
+    filter(dist_b1 == "logistic", sd_b1 == 0.25, true_b1 > 0) |>
+    mutate(
+      dist_b0 = factor(dist_b0, levels = c("logistic", "normal"),
+                       labels = c("Logistic (matched)", "Normal (misfit)"))
+    ) |>
+    ggplot(aes(x = true_b1, y = P_BF10_gt3, color = dist_b0)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("True effect b1") +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("Intercept prior", option = "D", end = 0.7) +
+    facet_grid(n_trials ~ n_subjects,
+               labeller = labeller(
+                 n_subjects = function(x) paste0(x, " subjects"),
+                 n_trials   = function(x) paste0(x, " trials")
+               )) +
+    labs(title = "Effect of intercept prior misfit on power (logit link, sd_b1 = 0.25)") +
+    base_theme()
+}
+```
+
+The answer is reassuring: the matched and misfit intercept priors produce
+essentially overlapping power curves. The intercept prior regularizes the
+baseline probability — keeping it away from 0 and 1 — but has no meaningful
+effect on inference about the experimental effect $b_1$, as long as the prior
+SD is reasonable (here, $\text{sd}_{b_0} = 0.75$). This is good news for
+researchers who may not use the exact matched prior: even a "misfit" Normal
+intercept prior on the logit scale does not compromise BF calibration.
+
+
+## What Happens When All Three Outcomes Are Considered?
+
+So far we have examined power and specificity separately — asking how often the
+Bayes Factor correctly supports H1 when effects exist, and how often it supports
+H0 when they do not. But each replication actually falls into one of three
+categories: the BF may favor H1 (BF10 > 3), favor H0 (BF01 > 3), or remain
+inconclusive (neither threshold crossed). Decomposing outcomes this way reveals
+where the "undecided" fraction concentrates and what conditions demand the most
+attention to sample size.
+
+```{r}
+#| label: fig-three-category
+#| fig-cap: "When effects are large or absent, the Bayes Factor is decisive in
+#|   the majority of replications. The inconclusive fraction (middle category)
+#|   is largest at small effects with few trials — the conditions where sample
+#|   size recommendations matter most. Under the null, most replications
+#|   correctly support H0, with a small fraction remaining undecided.
+#|   Bars show Dirichlet posterior means for the recommended Normal effect
+#|   prior (sd = 0.25) with matched Logistic intercept prior."
+#| fig-height: 7
+#| fig-width: 10
+#| eval: !expr posteriors_available
+
+posteriors |>
   filter(
-    dist_b1 == "logistic",
+    dist_b0 == "logistic",
+    dist_b1 == "normal",
     sd_b1   == 0.25,
-    true_b1 > 0
+    threshold == 3
   ) |>
+  select(true_b1, n_subjects, n_trials, h1_mean, inc_mean, h0_mean) |>
+  pivot_longer(cols = c(h1_mean, inc_mean, h0_mean),
+               names_to = "outcome", values_to = "proportion") |>
   mutate(
-    dist_b0 = factor(dist_b0, levels = c("logistic", "normal"),
-                     labels = c("Logistic (matched)", "Normal (misfit)"))
+    outcome = factor(outcome,
+      levels = c("h1_mean", "inc_mean", "h0_mean"),
+      labels = c("H1 detected (BF10 > 3)",
+                  "Inconclusive",
+                  "H0 detected (BF01 > 3)")),
+    true_b1_label = factor(paste0("b1 = ", true_b1))
   ) |>
-  ggplot(aes(x = true_b1, y = P_BF10_gt3, color = dist_b0)) +
-  geom_line(linewidth = 0.8) +
-  geom_point(size = 2) +
-  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
-  scale_x_continuous("True effect b1") +
-  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
-  scale_color_viridis_d("Intercept prior", option = "D", end = 0.7) +
-  facet_grid(n_trials ~ n_subjects,
+  ggplot(aes(x = factor(n_subjects), y = proportion, fill = outcome)) +
+  geom_col(position = "stack", width = 0.7) +
+  facet_grid(n_trials ~ true_b1_label,
              labeller = labeller(
-               n_subjects = function(x) paste0(x, " subjects"),
-               n_trials   = function(x) paste0(x, " trials")
+               n_trials = function(x) paste0(x, " trials")
              )) +
-  labs(title = "Effect of intercept prior misfit on power (logit link, sd_b1 = 0.25)") +
+  scale_x_discrete("Number of subjects") +
+  scale_y_continuous("Proportion of replications", limits = c(0, 1)) +
+  scale_fill_viridis_d("BF outcome", option = "D", end = 0.85) +
+  labs(title = "Three-category BF outcome decomposition (BF threshold = 3)",
+       subtitle = "Normal effect prior (sd = 0.25), matched Logistic intercept prior") +
   base_theme()
 ```
 
-Using a mismatched intercept prior (Normal instead of the matched Logistic)
-has only a small impact on power. This confirms that the intercept prior
-primarily serves to regularise the baseline probability and does not
-meaningfully alter inference about the effect parameter $b_1$, as long as
-its SD is reasonable (here, $\text{sd}_{b_0} = 0.75$).
+@fig-three-category reveals the full picture. Under the null ($b_1 = 0$), the
+large majority of replications correctly favor H0, with only a small fraction
+remaining undecided. As the true effect grows, the H1-detected fraction
+dominates. The most informative pattern appears at small effects ($b_1 = 0.05$
+and $0.10$) with 20 trials: here, a substantial proportion of replications
+remain inconclusive, meaning the BF neither confirms nor rules out the effect.
+This is precisely the regime where collecting more data — either more trials per
+subject or more subjects — makes the biggest practical difference. At 50 trials,
+the inconclusive fraction shrinks considerably even for small effects.
 
----
+The following sections address the role of the random-effects hyperprior, which
+operates through a different mechanism than the fixed-effects priors examined so
+far.
 
-## Results: Effect of Random-Effects Hyperprior
+
+## Does the Random-Effects Hyperprior Matter? {#sec-re-hyperprior}
+
+The analyses above used a single random-effects hyperprior
+($\text{Exponential}(4)$) and focused exclusively on the fixed-effects priors.
+But the prior predictive analysis showed that the choice of hyperprior affects
+the distribution of subject-level probabilities — the brms default
+Student-*t*(3, 0, 2.5) places a heavy right tail on between-subject SDs,
+pushing individual participants toward floor and ceiling. Does this also affect
+Bayes Factor performance?
+
+To answer this, we ran a second simulation with a within-subjects design
+(each subject in both conditions, with correlated random intercepts and slopes)
+while holding the fixed-effects priors at the recommended matched configuration.
+The only design factor was the hyperprior on the random-effects SDs: the brms
+default Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4).
 
 ```{r}
 #| label: setup-re
@@ -368,91 +701,168 @@ re_plot_data <- re_summaries |>
   )
 ```
 
-Script `03b_BFCalibration_RE.R` varies the prior on the random-effects SD while
-keeping the fixed-effects priors at the recommended matched configuration
-(Logistic intercept at $\text{sd}_{b_0} = 0.75$; Normal effect prior at
-$\text{sd}_{b_1} = 0.25$). The three candidate hyperpriors for the random-intercept
-and random-slope SDs are:
+```{r}
+#| label: setup-re-posteriors
+#| eval: !expr re_posteriors_available
 
-- **Default**: $\text{Student-}t(3, 0, 2.5)$ (brms default before version 2.20)
-- **Gamma**: $\text{Gamma}(2, 4)$
-- **Exponential**: $\text{Exponential}(4)$ (used throughout Script 03)
+re_post_data <- re_posteriors |>
+  mutate(
+    sd_prior_re = factor(sd_prior_re,
+                         levels = c("default", "gamma", "exponential"),
+                         labels = c("Student-t(3,0,2.5)", "Gamma(2,4)",
+                                    "Exponential(4)")),
+    n_trials_label = paste0(n_trials, " trials")
+  )
+```
 
-Unlike Script 03 (between-subjects, random intercepts only), this simulation uses
-a **within-subjects** design in which each subject appears in both conditions,
-with **correlated random intercepts and slopes** ($u_i \sim \mathcal{N}(0, 0.25)$,
-$v_i \sim \mathcal{N}(0, 0.15)$). The true effect size range is extended to
-$b_1 = 0.75$.
-
-### Power by RE Hyperprior
+### Power is unaffected by the RE hyperprior
 
 ```{r}
 #| label: fig-re-power
-#| fig-cap: "Power (P(BF10 > 3)) by number of subjects for each RE hyperprior,
-#|   with matched fixed-effects priors (Logistic intercept sd = 0.75,
-#|   Normal effect sd = 0.25). Within-subjects design with correlated RE."
+#| fig-cap: "The choice of random-effects hyperprior has no meaningful impact
+#|   on power. All three hyperpriors produce nearly identical power curves
+#|   across all effect sizes and sample sizes. This confirms that Bayes Factor
+#|   power is driven by the fixed-effects priors and the amount of data, not
+#|   by the RE hyperprior. Within-subjects design with correlated RE; matched
+#|   fixed-effects priors. Error bars: 95% credible intervals."
 #| fig-height: 6
 #| fig-width: 10
-#| eval: !expr re_results_available
+#| eval: !expr re_posteriors_available || re_results_available
 
-re_plot_data |>
-  filter(true_b1 > 0) |>
-  ggplot(aes(x = n_subjects, y = P_BF10_gt3, color = sd_prior_re,
-             linetype = sd_prior_re)) +
-  geom_line(linewidth = 0.8) +
-  geom_point(size = 2) +
-  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
-  scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
-  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
-  scale_color_viridis_d("RE hyperprior", option = "D", end = 0.85) +
-  scale_linetype_manual("RE hyperprior",
-    values = c("Student-t(3,0,2.5)" = "solid",
-               "Gamma(2,4)"         = "dashed",
-               "Exponential(4)"     = "dotdash")) +
-  facet_grid(n_trials_label ~ true_b1,
-             labeller = labeller(
-               true_b1 = function(x) paste0("b1 = ", x)
-             )) +
-  labs(title = "Power by RE hyperprior (within-subjects, matched fixed-effects priors)",
-       subtitle = "Dotted line = 80% power criterion") +
-  base_theme()
+if (re_posteriors_available) {
+  re_post_data |>
+    filter(true_b1 > 0, threshold == 3) |>
+    ggplot(aes(x = n_subjects, y = power_post_mean, color = sd_prior_re,
+               linetype = sd_prior_re)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = power_ci_lower, ymax = power_ci_upper),
+                  width = 3, linewidth = 0.4, alpha = 0.6) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("RE hyperprior", option = "D", end = 0.85) +
+    scale_linetype_manual("RE hyperprior",
+      values = c("Student-t(3,0,2.5)" = "solid",
+                 "Gamma(2,4)"         = "dashed",
+                 "Exponential(4)"     = "dotdash")) +
+    facet_grid(n_trials_label ~ true_b1,
+               labeller = labeller(
+                 true_b1 = function(x) paste0("b1 = ", x)
+               )) +
+    labs(title = "Power by RE hyperprior (within-subjects, matched fixed-effects priors)",
+         subtitle = "Dotted line = 80% power criterion") +
+    base_theme()
+} else {
+  re_plot_data |>
+    filter(true_b1 > 0) |>
+    ggplot(aes(x = n_subjects, y = P_BF10_gt3, color = sd_prior_re,
+               linetype = sd_prior_re)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+    scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+    scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+    scale_color_viridis_d("RE hyperprior", option = "D", end = 0.85) +
+    scale_linetype_manual("RE hyperprior",
+      values = c("Student-t(3,0,2.5)" = "solid",
+                 "Gamma(2,4)"         = "dashed",
+                 "Exponential(4)"     = "dotdash")) +
+    facet_grid(n_trials_label ~ true_b1,
+               labeller = labeller(
+                 true_b1 = function(x) paste0("b1 = ", x)
+               )) +
+    labs(title = "Power by RE hyperprior (within-subjects, matched fixed-effects priors)",
+         subtitle = "Dotted line = 80% power criterion") +
+    base_theme()
+}
 ```
 
-### Specificity by RE Hyperprior
+@fig-re-power confirms that the RE hyperprior has no meaningful impact on power.
+All three hyperpriors produce nearly identical detection rates across effect sizes
+and sample sizes. This makes sense: the Bayes Factor for the fixed effect $b_1$
+is primarily driven by the fixed-effects priors and the data, not by how between-
+subject variability is modeled. For power, researchers can choose any reasonable
+hyperprior without concern.
+
+### But specificity differs at small samples
+
+Where the RE hyperprior *does* matter is specificity — the ability to correctly
+support the null when there is no effect. @fig-re-specificity reveals meaningful
+differences, particularly at small sample sizes with few trials.
 
 ```{r}
 #| label: fig-re-specificity
-#| fig-cap: "Specificity (P(BF01 > 3)) under the null (true_b1 = 0) for each
-#|   RE hyperprior, by number of subjects and trials per subject."
+#| fig-cap: "Specificity under the null differs across RE hyperpriors,
+#|   particularly at small sample sizes with few trials. The brms default
+#|   Student-t(3,0,2.5) yields notably lower specificity at N = 30, while
+#|   Exponential(4) maintains the highest specificity across conditions.
+#|   These differences attenuate with more trials per subject.
+#|   Error bars: 95% credible intervals."
 #| fig-height: 5
 #| fig-width: 10
-#| eval: !expr re_results_available
+#| eval: !expr re_posteriors_available || re_results_available
 
-re_plot_data |>
-  filter(true_b1 == 0) |>
-  ggplot(aes(x = n_subjects, y = P_BF01_gt3, color = sd_prior_re,
-             linetype = sd_prior_re)) +
-  geom_line(linewidth = 0.8) +
-  geom_point(size = 2) +
-  scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
-  scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
-  scale_color_viridis_d("RE hyperprior", option = "D", end = 0.85) +
-  scale_linetype_manual("RE hyperprior",
-    values = c("Student-t(3,0,2.5)" = "solid",
-               "Gamma(2,4)"         = "dashed",
-               "Exponential(4)"     = "dotdash")) +
-  facet_wrap(~ n_trials_label) +
-  labs(title = "Specificity under H0 by RE hyperprior") +
-  base_theme()
+if (re_posteriors_available) {
+  re_post_data |>
+    filter(true_b1 == 0, threshold == 3) |>
+    ggplot(aes(x = n_subjects, y = spec_post_mean, color = sd_prior_re,
+               linetype = sd_prior_re)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = spec_ci_lower, ymax = spec_ci_upper),
+                  width = 3, linewidth = 0.4, alpha = 0.6) +
+    scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+    scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
+    scale_color_viridis_d("RE hyperprior", option = "D", end = 0.85) +
+    scale_linetype_manual("RE hyperprior",
+      values = c("Student-t(3,0,2.5)" = "solid",
+                 "Gamma(2,4)"         = "dashed",
+                 "Exponential(4)"     = "dotdash")) +
+    facet_wrap(~ n_trials_label) +
+    labs(title = "Specificity under H0 by RE hyperprior") +
+    base_theme()
+} else {
+  re_plot_data |>
+    filter(true_b1 == 0) |>
+    ggplot(aes(x = n_subjects, y = P_BF01_gt3, color = sd_prior_re,
+               linetype = sd_prior_re)) +
+    geom_line(linewidth = 0.8) +
+    geom_point(size = 2) +
+    scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+    scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
+    scale_color_viridis_d("RE hyperprior", option = "D", end = 0.85) +
+    scale_linetype_manual("RE hyperprior",
+      values = c("Student-t(3,0,2.5)" = "solid",
+                 "Gamma(2,4)"         = "dashed",
+                 "Exponential(4)"     = "dotdash")) +
+    facet_wrap(~ n_trials_label) +
+    labs(title = "Specificity under H0 by RE hyperprior") +
+    base_theme()
+}
 ```
 
-### Minimum Sample Size by RE Hyperprior
+@fig-re-specificity reveals the one scenario where the RE hyperprior makes a
+practical difference. At $n = 30$ with only 20 trials per subject, the brms
+default Student-*t*(3, 0, 2.5) yields notably lower specificity than the
+alternatives. The likely mechanism is that the Student-*t*'s heavy right tail
+occasionally allows large random-effects SDs, which absorb variability that
+would otherwise be attributed to (the absence of) the fixed effect — making
+the Bayes Factor less decisive under the null. The Exponential(4) prior, with
+its stronger concentration near zero, maintains the highest specificity.
+Importantly, these differences attenuate at 50 trials per subject, where all
+three hyperpriors converge to similar specificity levels.
+
+@tbl-re-summary provides the corresponding minimum sample sizes for 80% power,
+confirming that all three hyperpriors require the same sample sizes to reach
+adequate power.
 
 ```{r}
 #| label: tbl-re-summary
-#| tbl-cap: "Power at 80% criterion: minimum n_subjects required to achieve
-#|   P(BF10 > 3) >= 0.80, by RE hyperprior and true effect size (n_trials = 50).
-#|   Within-subjects design with correlated RE; matched fixed-effects priors."
+#| tbl-cap: "Minimum sample size for 80% power (50 trials per subject) is
+#|   identical across RE hyperpriors, confirming that the hyperprior affects
+#|   specificity but not power. Within-subjects design with correlated RE;
+#|   matched fixed-effects priors."
 #| eval: !expr re_results_available
 
 re_plot_data |>
@@ -471,16 +881,39 @@ re_plot_data |>
   knitr::kable(caption = "Minimum n_subjects for 80% power by RE hyperprior (n_trials = 50)")
 ```
 
----
 
-## Summary Table
+## Putting It All Together
+
+Across all conditions examined, Bayes Factor calibration is primarily driven by
+two factors: the scale of the effect prior and the amount of data (both sample
+size and trials per subject). The choice of prior *family* — Normal, Logistic,
+or Cauchy — has negligible impact on either power or specificity. The intercept
+prior (matched vs. misfit) similarly makes no practical difference. The one
+exception is the random-effects hyperprior, which affects specificity (but not
+power) at small sample sizes with few trials.
+
+These results confirm and extend the prior predictive analysis. The matched
+priors recommended there — Logistic(0, 0.75) for the intercept and Normal or
+Logistic at $\text{sd}_{b_1} = 0.25$ for the effect — not only produce
+substantively plausible prior predictive distributions, but also yield
+well-calibrated Bayes Factor inference. Improper prior choices (e.g., priors
+that are too wide, or the brms default Student-*t* hyperprior at small $n$)
+degrade either power or specificity, validating the importance of thoughtful
+prior specification.
+
+
+## Sample Size Guidance
+
+For practical study planning, the following tables summarize the minimum sample
+sizes needed to achieve 80% power across different prior specifications and
+effect sizes, assuming 50 trials per subject and the recommended matched
+intercept prior.
 
 ```{r}
 #| label: tbl-summary
-#| tbl-cap: "Power at 80% criterion (Script 03, between-subjects, random intercepts
-#|   only): minimum n_subjects required to achieve P(BF10 > 3) >= 0.80, for each
-#|   prior specification and true effect size (n_trials = 50, matched intercept
-#|   prior)."
+#| tbl-cap: "Minimum number of subjects for 80% power (P(BF10 > 3) >= 0.80)
+#|   at 50 trials per subject, by prior family, prior SD, and true effect size.
+#|   Between-subjects design with matched Logistic intercept prior."
 
 summaries |>
   filter(
@@ -505,50 +938,222 @@ summaries |>
   knitr::kable(caption = "Minimum n_subjects for 80% power (n_trials = 50, matched intercept prior)")
 ```
 
----
+@tbl-summary-ci provides more detail for the recommended configuration (Normal
+effect prior, $\text{sd}_{b_1} = 0.25$), showing the posterior mean and 95%
+credible interval for power at each combination of effect size and sample size.
 
-## Recommendations
+```{r}
+#| label: tbl-summary-ci
+#| tbl-cap: "Power estimates with uncertainty for the recommended prior
+#|   configuration (Normal effect prior, sd = 0.25, 50 trials per subject,
+#|   matched Logistic intercept prior). Values show posterior mean [95%
+#|   credible interval] for P(BF10 > 3)."
+#| eval: !expr posteriors_available
 
-Based on the BF calibration results:
+posteriors |>
+  filter(
+    n_trials == 50,
+    dist_b0 == "logistic",
+    dist_b1 == "normal",
+    sd_b1   == 0.25,
+    true_b1 > 0,
+    threshold == 3
+  ) |>
+  mutate(
+    power_summary = sprintf("%.2f [%.2f, %.2f]",
+                            power_post_mean, power_ci_lower, power_ci_upper)
+  ) |>
+  select(true_b1, n_subjects, power_summary) |>
+  pivot_wider(names_from = true_b1, values_from = power_summary,
+              names_prefix = "b1 = ") |>
+  rename("n_subjects" = n_subjects) |>
+  knitr::kable(caption = "Power posterior mean [95% CI] (Normal prior, sd = 0.25, n_trials = 50)")
+```
 
-1. **Prior scale matters more than prior family.** The Normal and Logistic
-   prior families produce very similar BF calibration at the same
-   $\text{sd}_{b_1}$, and even the heavier-tailed Cauchy prior differs only
-   modestly. The most impactful choice is the prior SD.
 
-2. **Recommended default:** $\text{sd}_{b_1} = 0.25$ with a Normal or
-   Logistic effect prior provides a good balance of power and specificity
-   for typical cognitive psychology effect sizes ($b_1 \approx 0.05$–$0.20$
-   on the logit scale, corresponding to roughly 2–10 percentage points
-   between conditions).
+## Recommendations for Practice
 
-3. **Intercept prior misfit has minimal impact** on BF calibration when
-   $\text{sd}_{b_0} = 0.75$, confirming that the main priority is matching
-   the effect prior scale to the expected range of effects.
+The most important decision when specifying priors for Bayes Factor testing in
+binomial GLMs is the **scale of the effect prior**. An effect prior with
+$\text{sd}_{b_1} = 0.25$ (under ±1 sum-to-zero coding) provides a good balance
+between power and specificity for typical cognitive psychology experiments. At
+this scale, the prior concentrates mass on effects up to roughly 20 percentage
+points on the probability scale — the range most commonly observed in cognitive
+experiments — while still allowing larger effects to receive non-trivial prior
+probability. Combined with the prior predictive analysis, which showed that
+$\text{sd}_{b_1} = 0.25$ yields a 90th percentile of $|\delta p| \approx 0.20$,
+this represents a principled default that is both substantively informed and
+inferentially well-calibrated.
 
-4. **Sample size guidance:** With 50 trials per condition and
-   $\text{sd}_{b_1} = 0.25$, the 80% power criterion is already met at
-   $n = 30$ subjects for the larger effects examined here ($b_1 \geq 0.20$).
-   On the probability scale with a typical baseline ($p_0 = 0.50$), $b_1 = 0.50$
-   on the logit scale corresponds to approximately 24 percentage points between
-   conditions, while $b_1 = 0.20$ corresponds to approximately 10 percentage
-   points. Smaller, more typical effects ($b_1 = 0.05$–$0.10$; roughly 2–5 pp)
-   are expected to require larger samples and more trials to achieve adequate power.
-   Power is more informatively differentiated by number of trials:
-   reducing from 50 to 20 trials per subject substantially lowers power for
-   smaller effects.
+The **choice of prior family matters far less** than the choice of scale.
+Normal, Logistic, and Cauchy priors produce nearly identical power and
+specificity at the same $\text{sd}_{b_1}$. We recommend Normal or Logistic
+priors over the Cauchy on the basis of prior predictive behavior (the Cauchy's
+heavy tails assign implausible probability to extreme effects), but researchers
+who prefer one family over another can do so without concern for BF calibration.
 
-5. **RE hyperprior has minimal impact on power but affects specificity at small samples.**
-   All three hyperpriors produce identical power (at or near ceiling) across the effect
-   sizes examined. However, specificity under H0 shows meaningful differences at small
-   samples with few trials: at $n = 30$ and 20 trials per subject, the default
-   Student-*t*(3, 0, 2.5) yields notably lower specificity (P(BF01 > 3) $\approx$ 0.45)
-   compared to $\text{Exponential}(4)$ ($\approx$ 0.59). These differences attenuate at
-   50 trials per subject, where the three hyperpriors converge to P(BF01 > 3) $\approx$
-   0.72–0.81 at $n = 30$. The $\text{Exponential}(4)$ prior offers a reasonable default
-   with good specificity properties at small $n$.
+Similarly, the **intercept prior** has minimal impact on Bayes Factor
+calibration. While we recommend the matched intercept prior (Logistic(0, 0.75)
+for logit, Normal(0, 0.75) for probit) based on its superior prior predictive
+properties, using a mismatched intercept prior does not noticeably degrade
+inferential performance. The main role of the intercept prior is to regularize
+the baseline probability away from floor and ceiling, which benefits model
+fitting but does not substantially affect the Bayes Factor for the effect.
 
----
+For **sample size planning**, the number of trials per subject is at least as
+important as the number of subjects. With 50 trials and
+$\text{sd}_{b_1} = 0.25$, the 80% power criterion is already met at $n = 30$
+for effects of $b_1 \geq 0.20$ on the logit scale (roughly 10 percentage points
+between conditions at a 50% baseline). Smaller effects ($b_1 = 0.05$–$0.10$,
+corresponding to 2–5 percentage points) require larger samples. Reducing from
+50 to 20 trials per subject substantially lowers power for these smaller effects,
+making trial count a critical design variable.
+
+Finally, the **random-effects hyperprior** deserves attention for specificity at
+small sample sizes. All three hyperpriors examined produce identical power, but
+the brms default Student-*t*(3, 0, 2.5) yields lower specificity than the
+alternatives at $n = 30$ with few trials. We recommend Exponential(4) as a
+default hyperprior for the random-effects SDs: it concentrates between-subject
+variability in a substantively plausible range and maintains good specificity
+properties even at small $n$.
+
+
+## Appendix: Quantifying Uncertainty in Detection Rates {#sec-appendix-uncertainty}
+
+Each simulation condition yields $n_{\text{valid}}$ replications (out of 100),
+each producing a BF10 value. Rather than reporting detection rates as
+point-estimate proportions, we apply Bayesian conjugate updating to obtain
+full posterior distributions that reflect the sampling uncertainty from the
+finite number of replications.
+
+### Two-category model (Beta-Binomial conjugacy)
+
+For a given BF threshold $\tau$ (e.g., $\tau = 3$ or $\tau = 10$), each
+replication is a Bernoulli trial: "success" if BF10 $> \tau$ (for power) or
+BF01 $> \tau$ (for specificity). With $k$ successes out of $n$ valid
+replications and a $\text{Beta}(\alpha_0, \beta_0)$ prior, the posterior is:
+
+$$\theta \mid k, n \sim \text{Beta}(\alpha_0 + k,\; \beta_0 + n - k)$$
+
+We use $\alpha_0 = \beta_0 = 3$, a symmetric prior centered at 0.5 with 95%
+of its mass in $[0.12,\, 0.88]$. This mildly regularises the estimate away
+from extreme values while being dominated by the data: the effective prior
+sample size is 6, negligible relative to the 100 replications per condition.
+For comparison, the maximum shrinkage relative to the MLE is $\leq 0.03$
+(at extreme rates near 0 or 1), and results are virtually identical under
+the uniform $\text{Beta}(1, 1)$ or Jeffreys $\text{Beta}(0.5, 0.5)$ priors.
+
+### Three-category model (Dirichlet-Multinomial conjugacy)
+
+Each replication falls into exactly one of three categories: (1) H1 detected
+(BF10 $> \tau$), (2) inconclusive ($1/\tau \leq \text{BF10} \leq \tau$), or
+(3) H0 detected (BF10 $< 1/\tau$). The Dirichlet-Multinomial conjugate
+update gives:
+
+$$(\theta_{\text{H1}},\, \theta_{\text{inc}},\, \theta_{\text{H0}}) \mid \mathbf{k} \sim \text{Dirichlet}(\boldsymbol{\alpha}_0 + \mathbf{k})$$
+
+with $\boldsymbol{\alpha}_0 = (1, 3, 1)$. This prior encodes the expectation
+that most BFs will be inconclusive (prior mean 60%), with lower prior mass on
+decisive evidence for either hypothesis (20% each). The effective prior sample
+size is 5, again negligible relative to the data. The marginal posterior for
+each category is Beta:
+$\theta_j \mid \mathbf{k} \sim \text{Beta}(\alpha_{0,j} + k_j,\; \sum_{m \neq j}(\alpha_{0,m} + k_m))$.
+
+### Sensitivity to Dirichlet prior choice
+
+To confirm that the Dirichlet prior specification is inconsequential given
+$n = 100$ replications per condition, we compare the $\text{Dirichlet}(1, 3, 1)$
+used in the main analyses to the symmetric $\text{Dirichlet}(1, 1, 1)$ (uniform
+on the simplex).
+
+```{r}
+#| label: fig-dirichlet-sensitivity
+#| fig-cap: "The choice of Dirichlet prior has negligible impact on posterior
+#|   means. Points compare the Dirichlet(1,3,1) and Dirichlet(1,1,1) priors
+#|   for each simulation condition; all points fall near the identity line,
+#|   confirming that 100 replications dominate the prior. Dashed line: identity."
+#| fig-height: 5
+#| fig-width: 10
+#| eval: !expr posteriors_available
+
+# Recompute posteriors under Dirichlet(1,1,1) for comparison
+results_dir <- here("output", "Simulation_BFCalibration")
+if (dir.exists(results_dir)) {
+  cond_files <- list.files(results_dir, pattern = "^BFCalib_Cond-", full.names = TRUE)
+} else {
+  # Fall back to RE results for sensitivity check
+  results_dir <- here("output", "Simulation_BFCalibration_RE")
+  cond_files <- list.files(results_dir, pattern = "^BFCalib_RE_Cond-", full.names = TRUE)
+}
+
+sensitivity_rows <- lapply(cond_files, function(f) {
+  cond_data <- readRDS(f)
+  bf10_vec  <- cond_data$results[, "BF10"]
+  counts    <- compute_bf_counts(bf10_vec, threshold = 3)
+
+  dir_131 <- dirichlet_posterior_summary(
+    counts["n_h1"], counts["n_h0"], counts["n_inconclusive"],
+    alpha0 = c(1, 3, 1)
+  )
+  dir_111 <- dirichlet_posterior_summary(
+    counts["n_h1"], counts["n_h0"], counts["n_inconclusive"],
+    alpha0 = c(1, 1, 1)
+  )
+
+  data.frame(
+    h1_mean_131  = dir_131["h1_mean"],
+    h1_mean_111  = dir_111["h1_mean"],
+    inc_mean_131 = dir_131["inc_mean"],
+    inc_mean_111 = dir_111["inc_mean"],
+    h0_mean_131  = dir_131["h0_mean"],
+    h0_mean_111  = dir_111["h0_mean"]
+  )
+})
+
+sensitivity <- bind_rows(sensitivity_rows)
+
+p1 <- ggplot(sensitivity, aes(x = h1_mean_111, y = h1_mean_131)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  geom_point(alpha = 0.5, size = 1.5) +
+  scale_x_continuous("Dirichlet(1,1,1)", limits = c(0, 1)) +
+  scale_y_continuous("Dirichlet(1,3,1)", limits = c(0, 1)) +
+  labs(title = "H1 detected") +
+  base_theme()
+
+p2 <- ggplot(sensitivity, aes(x = inc_mean_111, y = inc_mean_131)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  geom_point(alpha = 0.5, size = 1.5) +
+  scale_x_continuous("Dirichlet(1,1,1)", limits = c(0, 1)) +
+  scale_y_continuous("Dirichlet(1,3,1)", limits = c(0, 1)) +
+  labs(title = "Inconclusive") +
+  base_theme()
+
+p3 <- ggplot(sensitivity, aes(x = h0_mean_111, y = h0_mean_131)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  geom_point(alpha = 0.5, size = 1.5) +
+  scale_x_continuous("Dirichlet(1,1,1)", limits = c(0, 1)) +
+  scale_y_continuous("Dirichlet(1,3,1)", limits = c(0, 1)) +
+  labs(title = "H0 detected") +
+  base_theme()
+
+gridExtra::grid.arrange(p1, p2, p3, ncol = 3,
+  top = "Dirichlet prior sensitivity: posterior means by category (BF > 3)")
+```
+
+```{r}
+#| label: dirichlet-sensitivity-summary
+#| eval: !expr posteriors_available
+
+max_diff <- sensitivity |>
+  summarise(
+    max_h1  = max(abs(h1_mean_131 - h1_mean_111)),
+    max_inc = max(abs(inc_mean_131 - inc_mean_111)),
+    max_h0  = max(abs(h0_mean_131 - h0_mean_111))
+  )
+```
+
+`r if (posteriors_available) paste0("The maximum absolute difference in posterior means between the two priors across all conditions is ", sprintf("%.3f", max(max_diff$max_h1, max_diff$max_inc, max_diff$max_h0)), " — confirming that the Dirichlet prior choice is negligible relative to the data.")`
+
 
 ## References
 
