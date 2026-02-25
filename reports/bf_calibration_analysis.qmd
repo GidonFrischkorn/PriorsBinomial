@@ -17,8 +17,10 @@ format:
     code-fold: true
     embed-resources: true
   pdf:
-    toc: true
+    toc: false
     toc-depth: 3
+  docx:
+    number-sections: false
 execute:
   echo: false
   warning: false
@@ -36,6 +38,12 @@ library(viridis)
 library(here)
 
 summaries <- readRDS(here("output", "bf_calibration_summaries.rds"))
+
+re_summaries <- tryCatch(
+  readRDS(here("output", "bf_calibration_re_summaries.rds")),
+  error = function(e) NULL
+)
+re_results_available <- !is.null(re_summaries)
 
 # Factor labels
 dist_labels <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
@@ -73,11 +81,28 @@ The simulation crosses the following factors
   Normal (misfit for logit)
 - **Effect prior family** (`dist_b1`): Normal, Logistic, Cauchy
 - **Effect prior SD** (`sd_b1`): 0.25, 0.50
-- **True effect size** (`true_b1`): 0.00, 0.25, 0.50
+- **True effect size** (`true_b1`): 0.00, 0.05, 0.10, 0.20, 0.50
 - **Number of subjects** (`n_subjects`): 30, 60, 100
 - **Trials per subject** (`n_trials`): 20, 50
 
-This yields **288 conditions** with **100 replications** each.
+This yields **360 conditions** with **100 replications** each.
+
+A second simulation (`scripts/03b_BFCalibration_RE.R`) specifically investigates
+the effect of the **random-effects hyperprior** on BF calibration. It uses a
+structurally different data-generating model — a **within-subjects** design with
+**correlated random intercepts and slopes** — and fixes the fixed-effects priors
+at the matched configuration from Script 03:
+
+- **RE hyperprior** (`sd_prior_re`): Default Student-*t*(3, 0, 2.5), Gamma(2, 4),
+  Exponential(4) — this is the sole design factor
+- **True effect size** (`true_b1`): 0.00, 0.05, 0.10, 0.20, 0.50
+- **Number of subjects** (`n_subjects`): 30, 60, 100
+- **Trials per subject** (`n_trials`): 20, 50
+- Fixed: Logistic intercept prior ($\text{sd}_{b_0} = 0.75$), Normal effect
+  prior ($\text{sd}_{b_1} = 0.25$); true intercept sampled per replication
+  from $\text{Uniform}(0.4, 0.9)$ on the probability scale (same as Script 03)
+
+This yields **90 conditions** with **100 replications** each.
 
 ### Model
 
@@ -133,7 +158,7 @@ ggplot(matched, aes(x = n_subjects, y = P_BF10_gt3,
   geom_point(size = 2) +
   geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
   scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
-  scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
+  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
   scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
   scale_linetype_manual("Prior SD",
     values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
@@ -149,13 +174,14 @@ ggplot(matched, aes(x = n_subjects, y = P_BF10_gt3,
 
 @fig-power-n shows that power increases with both sample size and true
 effect size, as expected. The tighter prior ($\text{sd} = 0.25$) yields
-higher power than $\text{sd} = 0.50$ across all conditions, because the
+slightly higher power than $\text{sd} = 0.50$ on average, because the
 narrower prior concentrates more density near the true effect and less at
-extreme values. Differences between the three prior families are small
-relative to the effect of prior SD. With 50 trials per subject, the BF
-reaches the 80% power criterion for $b_1 = 0.50$ at around 60 subjects
-(with $\text{sd} = 0.25$), whereas $b_1 = 0.25$ requires considerably
-larger samples.
+extreme values. However, this difference is practically negligible: power is
+at or near ceiling for both effect sizes with 50 trials and $\text{sd} = 0.25$,
+exceeding 97% even at the smallest sample size ($n = 30$). Differences between
+the three prior families are small relative to the effect of prior SD. The
+more informative variation appears at 20 trials per subject, where power is
+lower and sample-size effects become more visible.
 
 ### Power by n_trials
 
@@ -174,7 +200,7 @@ matched |>
   geom_point(size = 2) +
   geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
   scale_x_continuous("Trials per subject", breaks = c(20, 50)) +
-  scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
+  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
   scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
   scale_linetype_manual("Prior SD",
     values = c("sd = 0.25" = "solid", "sd = 0.5" = "dashed")) +
@@ -263,7 +289,7 @@ summaries |>
   geom_point(size = 2) +
   geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
   scale_x_continuous("True effect b1") +
-  scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
+  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
   scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
   facet_grid(n_trials ~ n_subjects,
              labeller = labeller(
@@ -307,7 +333,7 @@ summaries |>
   geom_point(size = 2) +
   geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
   scale_x_continuous("True effect b1") +
-  scale_y_continuous("P(BF10 > 3)", limits = c(0, 1)) +
+  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
   scale_color_viridis_d("Intercept prior", option = "D", end = 0.7) +
   facet_grid(n_trials ~ n_subjects,
              labeller = labeller(
@@ -326,13 +352,135 @@ its SD is reasonable (here, $\text{sd}_{b_0} = 0.75$).
 
 ---
 
+## Results: Effect of Random-Effects Hyperprior
+
+```{r}
+#| label: setup-re
+#| eval: !expr re_results_available
+
+re_plot_data <- re_summaries |>
+  mutate(
+    sd_prior_re = factor(sd_prior_re,
+                         levels = c("default", "gamma", "exponential"),
+                         labels = c("Student-t(3,0,2.5)", "Gamma(2,4)",
+                                    "Exponential(4)")),
+    n_trials_label = paste0(n_trials, " trials")
+  )
+```
+
+Script `03b_BFCalibration_RE.R` varies the prior on the random-effects SD while
+keeping the fixed-effects priors at the recommended matched configuration
+(Logistic intercept at $\text{sd}_{b_0} = 0.75$; Normal effect prior at
+$\text{sd}_{b_1} = 0.25$). The three candidate hyperpriors for the random-intercept
+and random-slope SDs are:
+
+- **Default**: $\text{Student-}t(3, 0, 2.5)$ (brms default before version 2.20)
+- **Gamma**: $\text{Gamma}(2, 4)$
+- **Exponential**: $\text{Exponential}(4)$ (used throughout Script 03)
+
+Unlike Script 03 (between-subjects, random intercepts only), this simulation uses
+a **within-subjects** design in which each subject appears in both conditions,
+with **correlated random intercepts and slopes** ($u_i \sim \mathcal{N}(0, 0.25)$,
+$v_i \sim \mathcal{N}(0, 0.15)$). The true effect size range is extended to
+$b_1 = 0.75$.
+
+### Power by RE Hyperprior
+
+```{r}
+#| label: fig-re-power
+#| fig-cap: "Power (P(BF10 > 3)) by number of subjects for each RE hyperprior,
+#|   with matched fixed-effects priors (Logistic intercept sd = 0.75,
+#|   Normal effect sd = 0.25). Within-subjects design with correlated RE."
+#| fig-height: 6
+#| fig-width: 10
+#| eval: !expr re_results_available
+
+re_plot_data |>
+  filter(true_b1 > 0) |>
+  ggplot(aes(x = n_subjects, y = P_BF10_gt3, color = sd_prior_re,
+             linetype = sd_prior_re)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.80, linetype = "dotted", color = "grey40") +
+  scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+  scale_y_continuous("P(BF10 > 3)", limits = c(NA, 1)) +
+  scale_color_viridis_d("RE hyperprior", option = "D", end = 0.85) +
+  scale_linetype_manual("RE hyperprior",
+    values = c("Student-t(3,0,2.5)" = "solid",
+               "Gamma(2,4)"         = "dashed",
+               "Exponential(4)"     = "dotdash")) +
+  facet_grid(n_trials_label ~ true_b1,
+             labeller = labeller(
+               true_b1 = function(x) paste0("b1 = ", x)
+             )) +
+  labs(title = "Power by RE hyperprior (within-subjects, matched fixed-effects priors)",
+       subtitle = "Dotted line = 80% power criterion") +
+  base_theme()
+```
+
+### Specificity by RE Hyperprior
+
+```{r}
+#| label: fig-re-specificity
+#| fig-cap: "Specificity (P(BF01 > 3)) under the null (true_b1 = 0) for each
+#|   RE hyperprior, by number of subjects and trials per subject."
+#| fig-height: 5
+#| fig-width: 10
+#| eval: !expr re_results_available
+
+re_plot_data |>
+  filter(true_b1 == 0) |>
+  ggplot(aes(x = n_subjects, y = P_BF01_gt3, color = sd_prior_re,
+             linetype = sd_prior_re)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_x_continuous("Number of subjects", breaks = c(30, 60, 100)) +
+  scale_y_continuous("P(BF01 > 3)", limits = c(0, 1)) +
+  scale_color_viridis_d("RE hyperprior", option = "D", end = 0.85) +
+  scale_linetype_manual("RE hyperprior",
+    values = c("Student-t(3,0,2.5)" = "solid",
+               "Gamma(2,4)"         = "dashed",
+               "Exponential(4)"     = "dotdash")) +
+  facet_wrap(~ n_trials_label) +
+  labs(title = "Specificity under H0 by RE hyperprior") +
+  base_theme()
+```
+
+### Minimum Sample Size by RE Hyperprior
+
+```{r}
+#| label: tbl-re-summary
+#| tbl-cap: "Power at 80% criterion: minimum n_subjects required to achieve
+#|   P(BF10 > 3) >= 0.80, by RE hyperprior and true effect size (n_trials = 50).
+#|   Within-subjects design with correlated RE; matched fixed-effects priors."
+#| eval: !expr re_results_available
+
+re_plot_data |>
+  filter(n_trials == 50, true_b1 > 0) |>
+  group_by(sd_prior_re, true_b1) |>
+  summarise(
+    min_n_80pct = {
+      n_meeting <- n_subjects[P_BF10_gt3 >= 0.80]
+      if (length(n_meeting) > 0) min(n_meeting) else NA_integer_
+    },
+    .groups = "drop"
+  ) |>
+  pivot_wider(names_from = true_b1, values_from = min_n_80pct,
+              names_prefix = "b1 = ") |>
+  rename("RE hyperprior" = sd_prior_re) |>
+  knitr::kable(caption = "Minimum n_subjects for 80% power by RE hyperprior (n_trials = 50)")
+```
+
+---
+
 ## Summary Table
 
 ```{r}
 #| label: tbl-summary
-#| tbl-cap: "Power at 80% criterion: minimum n_subjects required to achieve
-#|   P(BF10 > 3) >= 0.80, for each prior specification and true effect size
-#|   (n_trials = 50, matched intercept prior)."
+#| tbl-cap: "Power at 80% criterion (Script 03, between-subjects, random intercepts
+#|   only): minimum n_subjects required to achieve P(BF10 > 3) >= 0.80, for each
+#|   prior specification and true effect size (n_trials = 50, matched intercept
+#|   prior)."
 
 summaries |>
   filter(
@@ -370,18 +518,35 @@ Based on the BF calibration results:
 
 2. **Recommended default:** $\text{sd}_{b_1} = 0.25$ with a Normal or
    Logistic effect prior provides a good balance of power and specificity
-   for typical cognitive psychology effect sizes ($b_1 \approx 0.25$–$0.50$
-   on the logit scale).
+   for typical cognitive psychology effect sizes ($b_1 \approx 0.05$–$0.20$
+   on the logit scale, corresponding to roughly 2–10 percentage points
+   between conditions).
 
 3. **Intercept prior misfit has minimal impact** on BF calibration when
    $\text{sd}_{b_0} = 0.75$, confirming that the main priority is matching
    the effect prior scale to the expected range of effects.
 
 4. **Sample size guidance:** With 50 trials per condition and
-   $\text{sd}_{b_1} = 0.25$, approximately 60 subjects are needed to
-   achieve 80% power for a medium effect ($b_1 = 0.50$, roughly 12
-   percentage points on the probability scale). Smaller effects
-   ($b_1 = 0.25$) require substantially larger samples or more trials.
+   $\text{sd}_{b_1} = 0.25$, the 80% power criterion is already met at
+   $n = 30$ subjects for the larger effects examined here ($b_1 \geq 0.20$).
+   On the probability scale with a typical baseline ($p_0 = 0.50$), $b_1 = 0.50$
+   on the logit scale corresponds to approximately 24 percentage points between
+   conditions, while $b_1 = 0.20$ corresponds to approximately 10 percentage
+   points. Smaller, more typical effects ($b_1 = 0.05$–$0.10$; roughly 2–5 pp)
+   are expected to require larger samples and more trials to achieve adequate power.
+   Power is more informatively differentiated by number of trials:
+   reducing from 50 to 20 trials per subject substantially lowers power for
+   smaller effects.
+
+5. **RE hyperprior has minimal impact on power but affects specificity at small samples.**
+   All three hyperpriors produce identical power (at or near ceiling) across the effect
+   sizes examined. However, specificity under H0 shows meaningful differences at small
+   samples with few trials: at $n = 30$ and 20 trials per subject, the default
+   Student-*t*(3, 0, 2.5) yields notably lower specificity (P(BF01 > 3) $\approx$ 0.45)
+   compared to $\text{Exponential}(4)$ ($\approx$ 0.59). These differences attenuate at
+   50 trials per subject, where the three hyperpriors converge to P(BF01 > 3) $\approx$
+   0.72–0.81 at $n = 30$. The $\text{Exponential}(4)$ prior offers a reasonable default
+   with good specificity properties at small $n$.
 
 ---
 

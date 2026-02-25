@@ -19,14 +19,13 @@ library(here)
 load(here("output", "res_bf_calibration_re.rds"))
 
 # Extract summary statistics (one row per condition)
-summaries <- SimExtract(res, what = "results")
-
-# Add design condition columns
+# Stats are stored directly as columns on the SimDesign results object
 design_cols <- c("sd_prior_re", "true_b1", "n_subjects", "n_trials")
-summaries <- bind_cols(
-  select(res, all_of(design_cols)),
-  summaries
-)
+stat_cols   <- c("mean_log_BF10", "P_BF10_gt3", "P_BF10_gt10",
+                 "P_BF01_gt3", "P_BF01_gt10", "n_failed", "n_valid",
+                 "mean_true_p0")
+
+summaries <- select(res, all_of(c(design_cols, stat_cols)))
 
 saveRDS(summaries, here("output", "bf_calibration_re_summaries.rds"))
 message(

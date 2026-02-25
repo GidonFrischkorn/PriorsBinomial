@@ -15,11 +15,11 @@
 #   H1: b0 ~ matched_prior, b1 ~ effect_prior
 #   H0: b0 ~ matched_prior, b1 constrained to 0
 #
-# DESIGN (288 conditions x 200 reps):
+# DESIGN (360 conditions x 100 reps):
 #   dist_b0     in {logistic, normal}      [matched vs. misfit for logit]
 #   dist_b1     in {normal, logistic, cauchy}
 #   sd_b1       in {0.25, 0.50}
-#   true_b1     in {0.00, 0.25, 0.50, 0.75}
+#   true_b1     in {0.00, 0.05, 0.10, 0.20, 0.50}
 #   n_subjects  in {30, 60, 100}
 #   n_trials    in {20, 50}
 #
@@ -34,7 +34,8 @@
 # REDUCTIONS vs. original 1,620-condition grid:
 #   link:     fixed to logit (probit analogous by matched prior principle)
 #   sd_b1:    dropped 1.00 (too diffuse, established in Goal 1)
-#   true_b1:  dropped 1.00 (ceiling effects; trend clear from 0.75)
+#   true_b1:  covers realistic cognitive psychology range: 2-10 pp typical
+#             effects (~b1 0.05-0.20), up to ~22 pp for set-size effects (b1 0.50)
 #   n_trials: dropped 100 (monotone improvement; extrapolates from 20/50)
 #
 # OUTPUT:
@@ -61,11 +62,11 @@ Design <- createDesign(
   dist_b0    = c("logistic", "normal"),    # matched vs. misfit intercept prior
   dist_b1    = c("normal", "logistic", "cauchy"),
   sd_b1      = c(0.25, 0.50),
-  true_b1    = c(0.00, 0.25, 0.50),
+  true_b1    = c(0.00, 0.05, 0.10, 0.20, 0.50),
   n_subjects = c(30, 60, 100),
   n_trials   = c(20, 50)
 )
-# Total: 2 x 3 x 2 x 4 x 3 x 2 = 288 conditions
+# Total: 2 x 3 x 2 x 5 x 3 x 2 = 360 conditions
 
 
 # ------------------------------------------------------------------------------
@@ -76,30 +77,30 @@ Design <- createDesign(
 #'
 #' @param condition  One row of Design.
 #' @param fixed_objects List with: b0_range (numeric[2]), sd_b0 (numeric),
-#'   sd_re (numeric) between-subject SD on the logit scale.
-#' @return data.frame with columns y, n, condition, subject_id, true_p0.
+#'   true_sd_re (numeric) between-subject SD on the logit scale.
+#' @return data.frame with columns subject_id, y, n, condition, true_p0.
 Generate <- function(condition, fixed_objects = NULL) {
   Attach(condition)
 
   # Sample intercept uniformly on probability scale, convert to link scale
-  true_p0 <- runif(1, fixed_objects$b0_range[1], fixed_objects$b0_range[2])
-  true_b0 <- apply_link(true_p0, "logit")
-  sd_re   <- fixed_objects$sd_re
+  true_p0    <- runif(1, fixed_objects$b0_range[1], fixed_objects$b0_range[2])
+  true_b0    <- apply_link(true_p0, "logit")
+  true_sd_re <- fixed_objects$true_sd_re
 
   g_inv <- function(x) apply_inverse_link(x, link = "logit")
 
   # Subject-level random intercepts (between-subject variability)
   n_total <- 2L * n_subjects
   cond    <- rep(c(1L, -1L), each = n_subjects)
-  u       <- rnorm(n_total, mean = 0, sd = sd_re)
+  u       <- rnorm(n_total, mean = 0, sd = true_sd_re)
 
   p_subj <- g_inv(true_b0 + true_b1 * cond + u)
 
   data.frame(
+    subject_id = seq_len(n_total),
     y          = rbinom(n_total, n_trials, p_subj),
     n          = n_trials,
     condition  = cond,
-    subject_id = seq_len(n_total),
     true_p0    = true_p0
   )
 }
@@ -181,7 +182,7 @@ if (smoke_test) {
     analyse       = Analyse,
     summarise     = Summarise,
     fixed_objects = list(b0_range = c(0.4, 0.9), sd_b0 = 0.75,
-                         sd_re = 0.25, sd_prior_re = "exponential"),
+                         true_sd_re = 0.25, sd_prior_re = "exponential"),
     parallel      = FALSE
   )
   message("Smoke test complete.")
@@ -195,7 +196,7 @@ if (smoke_test) {
     analyse       = Analyse,
     summarise     = Summarise,
     fixed_objects = list(b0_range = c(0.4, 0.9), sd_b0 = 0.75,
-                         sd_re = 0.25, sd_prior_re = "exponential"),
+                         true_sd_re = 0.25, sd_prior_re = "exponential"),
     save_results  = TRUE,
     save_details  = list(
       safe                  = TRUE,

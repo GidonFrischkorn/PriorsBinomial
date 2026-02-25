@@ -20,9 +20,9 @@
 #       sigma_u ~ sd_prior_re, sigma_v ~ sd_prior_re
 #   H0: Savage-Dickey at b1 = 0 (identical RE structure as H1)
 #
-# DESIGN (72 conditions x 200 reps):
+# DESIGN (90 conditions x 100 reps):
 #   sd_prior_re in {"default", "gamma", "exponential"}
-#   true_b1     in {0.00, 0.25, 0.50, 0.75}
+#   true_b1     in {0.00, 0.05, 0.10, 0.20, 0.50}
 #   n_subjects  in {30, 60, 100}
 #   n_trials    in {20, 50}
 #
@@ -31,7 +31,8 @@
 #   dist_b0     = "logistic" (matched intercept prior for logit link)
 #   dist_b1     = "normal"   (recommended from script 03)
 #   sd_b1       = 0.25       (recommended from script 03)
-#   true_b0     = 0          (50% baseline at null)
+#   b0_range    = c(0.4, 0.9): true_b0 sampled per replication from
+#                Uniform(0.4, 0.9) on the probability scale (same as script 03)
 #   sd_b0       = 0.75       (recommended from Goal 1)
 #   true_sd_re  = 0.25       (realistic between-subject SD on logit scale,
 #                             ~6% between-subject SD in probability at p=0.5)
@@ -71,11 +72,11 @@ source(here("R", "bf_helpers.R"))
 
 Design <- createDesign(
   sd_prior_re = c("default", "gamma", "exponential"),
-  true_b1     = c(0.00, 0.25, 0.50, 0.75),
+  true_b1     = c(0.00, 0.05, 0.10, 0.20, 0.50),
   n_subjects  = c(30, 60, 100),
   n_trials    = c(20, 50)
 )
-# Total: 3 x 4 x 3 x 2 = 72 conditions
+# Total: 3 x 5 x 3 x 2 = 90 conditions
 
 
 # ------------------------------------------------------------------------------
@@ -91,15 +92,16 @@ Design <- createDesign(
 #' true_sd_slope) models between-subject variability in the condition effect.
 #'
 #' @param condition    One row of Design.
-#' @param fixed_objects List with: true_b0 (numeric), sd_b0 (numeric),
+#' @param fixed_objects List with: b0_range (numeric[2]), sd_b0 (numeric),
 #'                    true_sd_re (numeric), true_sd_slope (numeric).
-#' @return data.frame with columns subject_id, y, n, condition.
+#' @return data.frame with columns subject_id, y, n, condition, true_p0.
 Generate <- function(condition, fixed_objects = NULL) {
   Attach(condition)
-  true_b0      <- fixed_objects$true_b0
-  true_sd_re   <- fixed_objects$true_sd_re
+  true_p0       <- runif(1, fixed_objects$b0_range[1], fixed_objects$b0_range[2])
+  true_b0       <- apply_link(true_p0, "logit")
+  true_sd_re    <- fixed_objects$true_sd_re
   true_sd_slope <- fixed_objects$true_sd_slope
-  g_inv        <- function(x) apply_inverse_link(x, link = "logit")
+  g_inv         <- function(x) apply_inverse_link(x, link = "logit")
 
   # Per-subject random intercept and random slope
   u_i <- rnorm(n_subjects, mean = 0, sd = true_sd_re)
@@ -112,7 +114,8 @@ Generate <- function(condition, fixed_objects = NULL) {
       rbinom(n_subjects, n_trials, g_inv(true_b0 + u_i - (true_b1 + v_i)))
     ),
     n         = n_trials,
-    condition = rep(c(1L, -1L), each = n_subjects)
+    condition = rep(c(1L, -1L), each = n_subjects),
+    true_p0   = true_p0
   )
 }
 
@@ -123,10 +126,11 @@ Generate <- function(condition, fixed_objects = NULL) {
 #' @param condition    One row of Design.
 #' @param dat          Output of Generate.
 #' @param fixed_objects List with: sd_b0 (numeric).
-#' @return Named numeric vector with BF10 and BF01.
+#' @return Named numeric vector with BF10, BF01, and true_p0.
 Analyse <- function(condition, dat, fixed_objects = NULL) {
   Attach(condition)
-  sd_b0 <- fixed_objects$sd_b0
+  sd_b0   <- fixed_objects$sd_b0
+  true_p0 <- dat$true_p0[1]
 
   bf10 <- tryCatch(
     fit_and_get_bf_sd_re(
@@ -142,20 +146,19 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
     error = function(e) NA_real_
   )
 
-  c(BF10 = bf10, BF01 = 1 / bf10)
+  c(BF10 = bf10, BF01 = 1 / bf10, true_p0 = true_p0)
 }
 
 
 #' Summarise: compute power and specificity metrics
 #'
 #' @param condition    One row of Design.
-#' @param results      Matrix (replications x 2) with BF10 and BF01 columns.
+#' @param results      Matrix (replications x 3) with BF10, BF01, true_p0 columns.
 #' @param fixed_objects Unused.
 #' @return Named numeric vector of summary statistics.
 Summarise <- function(condition, results, fixed_objects = NULL) {
   bf10    <- results[, "BF10"]
   bf01    <- results[, "BF01"]
-  n_valid <- sum(!is.na(bf10))
 
   c(
     mean_log_BF10 = mean(log(bf10), na.rm = TRUE),
@@ -164,7 +167,8 @@ Summarise <- function(condition, results, fixed_objects = NULL) {
     P_BF01_gt3    = mean(bf01 > 3,  na.rm = TRUE),
     P_BF01_gt10   = mean(bf01 > 10, na.rm = TRUE),
     n_failed      = sum(is.na(bf10)),
-    n_valid       = n_valid
+    n_valid       = sum(!is.na(bf10)),
+    mean_true_p0  = mean(results[, "true_p0"], na.rm = TRUE)
   )
 }
 
@@ -179,17 +183,14 @@ smoke_test <- FALSE
 out_file <- here("output", "res_bf_calibration_re.rds")
 
 fixed_objects_re <- list(
-  true_b0       = 0,
+  b0_range      = c(0.4, 0.9),
   sd_b0         = 0.75,
   true_sd_re    = 0.25,
   true_sd_slope = 0.15
 )
 
 if (smoke_test) {
-  test_design <- Design[
-    Design$sd_prior_re == "gamma" & Design$dist_b1 == "normal",
-    , drop = FALSE
-  ][1, ]
+  test_design <- Design[Design$sd_prior_re == "gamma", , drop = FALSE][1, ]
   res_test <- runSimulation(
     design        = test_design,
     replications  = 2,
