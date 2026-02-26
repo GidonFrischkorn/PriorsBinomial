@@ -56,14 +56,25 @@ fig1_conditions <- expand.grid(
 )
 
 # Focus conditions for Figure 2 (delta_p ridges): vary sd_b1, all dist_b1,
-# fix sd_b0 = 0.75 and dist_b0 = "logistic"
-fig2_conditions <- expand.grid(
-  link    = c("logit", "probit"),
-  dist_b0 = "logistic",
-  sd_b0   = 0.75,
-  dist_b1 = c("normal", "logistic", "cauchy"),
-  sd_b1   = c(0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 1.50, 2.00),
-  stringsAsFactors = FALSE
+# fix sd_b0 = 0.75 and use matched intercept prior per link
+# (logistic for logit, normal for probit)
+fig2_conditions <- bind_rows(
+  expand.grid(
+    link    = "logit",
+    dist_b0 = "logistic",
+    sd_b0   = 0.75,
+    dist_b1 = c("normal", "logistic", "cauchy"),
+    sd_b1   = c(0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 1.50, 2.00),
+    stringsAsFactors = FALSE
+  ),
+  expand.grid(
+    link    = "probit",
+    dist_b0 = "normal",
+    sd_b0   = 0.75,
+    dist_b1 = c("normal", "logistic", "cauchy"),
+    sd_b1   = c(0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 1.50, 2.00),
+    stringsAsFactors = FALSE
+  )
 )
 
 viz_conditions <- bind_rows(fig1_conditions, fig2_conditions) |> distinct()

@@ -9,7 +9,7 @@ output/
 figures/
 
 # Local files (working docs, DOCX)
-local/
+/local
 
 # OS
 .DS_Store

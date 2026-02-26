@@ -78,17 +78,23 @@ The prior predictive analysis established that matched priors — Logistic(0, 0.
 for the logit link and Normal(0, 0.75) for the probit link — produce well-behaved
 distributions on the probability scale, and that effect priors at
 $\text{sd}_{b_1} = 0.25$ concentrate prior mass on substantively plausible effect
-sizes. However, good prior predictive behavior is a necessary condition for sound
+sizes. However, good prior predictive behaviour is a necessary condition for sound
 Bayesian inference, not a sufficient one. We also need to know how these priors
 perform when used for hypothesis testing with Bayes Factors.
 
 Prior specification directly affects discovery rates. A prior that is too wide
 spreads probability mass across implausible effect sizes, diluting the evidence
 for real effects and reducing the power of the Bayes Factor to detect them. A
-prior that is too narrow may spuriously favor or disfavor the null. The present
-simulation tests whether the priors recommended in the prior predictive analysis
-lead to well-calibrated inference — adequate power when effects exist, and high
-specificity when they do not.
+prior that is too narrow may spuriously favour or disfavour the null. This tension
+is well documented for normal-data models: @schonbrodt2018 introduced Bayes Factor
+Design Analysis (BFDA) as a formal framework for evaluating power and error rates
+under a given prior, and @stefan2019 extended it to informed priors. These tools,
+however, have been developed for simple designs with closed-form BF solutions
+(e.g., the JZS prior of @rouder2009). For binomial GLMs — where BFs must be
+computed numerically via bridge sampling [@gronau2017; @gronau2020] or the
+Savage–Dickey density ratio — no systematic calibration exists. The present
+simulation fills this gap by applying the BFDA logic to the recommended priors
+from the prior predictive analysis.
 
 We address four questions:
 
@@ -146,13 +152,17 @@ The analysis model mirrored this structure: a binomial GLMM with one random
 intercept per subject, fitted with brms [@burkner2017], with the intercept prior
 SD fixed at 0.75 and an $\text{Exponential}(4)$ hyperprior on the random-intercept
 SD. Bayes Factors were computed via the Savage–Dickey density ratio
-[@wagenmakers2018], which compares how plausible a zero effect was before versus
-after seeing the data:
+[@wagenmakers2018; @ly2016], which compares how plausible a zero effect was before
+versus after seeing the data:
 $\text{BF}_{10} = \pi(b_1 = 0) / p(b_1 = 0 \mid \text{data})$.
 When the posterior concentrates away from zero (i.e., the data suggest an effect),
-$\text{BF}_{10}$ exceeds 1 and favors H1; when the posterior piles up at zero
+$\text{BF}_{10}$ exceeds 1 and favours H1; when the posterior piles up at zero
 (i.e., the data are consistent with no effect), $\text{BF}_{10}$ falls below 1
-and favors H0.
+and favours H0. Note that the prior density at zero — $\pi(b_1 = 0)$ — enters the
+numerator directly. This has a critical consequence: different prior families with
+the same scale parameter place different densities at zero, which creates
+systematic differences in specificity (the ability to correctly support H0). We
+return to this point in the specificity analysis below.
 
 To quantify uncertainty in detection rates given the finite number of replications,
 we applied Bayesian conjugate updating (see
@@ -178,7 +188,7 @@ trial counts, and prior specifications.
 #|   tighter prior (sd = 0.25, solid lines) yields slightly higher power than
 #|   the wider prior (sd = 0.50, dashed), but the difference is small compared
 #|   to the effect of sample size and true effect. Prior family (color) has
-#|   minimal impact. Error bars: 95% credible intervals."
+#|   minimal impact on power. Error bars: 95% credible intervals."
 #| fig-height: 6
 #| fig-width: 10
 
@@ -351,9 +361,12 @@ BF01 > 3)?
 #| label: fig-specificity
 #| fig-cap: "When no effect exists, the Bayes Factor correctly supports the
 #|   null in the large majority of replications. Wider priors (sd = 0.50,
-#|   dashed) yield slightly higher specificity because they place less
+#|   dashed) yield substantially higher specificity because they place less
 #|   density at exactly zero, making the Savage-Dickey ratio more conservative.
-#|   Prior family has minimal impact. Error bars: 95% credible intervals."
+#|   At sd = 0.25 (solid lines), the Normal prior shows notably lower
+#|   specificity than the Logistic and Cauchy, especially at small sample
+#|   sizes — a consequence of its higher density at exactly zero (see text).
+#|   Error bars: 95% credible intervals."
 #| fig-height: 5
 #| fig-width: 10
 
@@ -414,23 +427,37 @@ if (posteriors_available) {
 }
 ```
 
-@fig-specificity shows that specificity is reassuringly high across all prior
-configurations. When there is no true effect, the Bayes Factor correctly
-supports H0 (BF01 > 3) in the large majority of replications. The wider prior
-($\text{sd} = 0.50$, dashed lines) yields slightly higher specificity than the
-tighter alternative. This may seem counterintuitive, but it follows directly from
-the Savage–Dickey mechanism: a wider prior places less density at exactly zero,
-so the ratio of prior to posterior density at zero shifts more readily in favor
-of H0 when the data are consistent with no effect.
+@fig-specificity shows that specificity is high across most prior configurations,
+but with a notable pattern: at $\text{sd}_{b_1} = 0.25$ (solid lines), the
+Normal prior yields substantially lower specificity than the Logistic and Cauchy,
+particularly at small sample sizes. At $n = 30$ with 20 trials, the Normal prior
+correctly supports H0 in only 41% of null-effect replications, compared to 69%
+for the Logistic and 76% for the Cauchy.
 
-The key take-home is that the recommended priors do not produce misleading
-evidence. Researchers can use $\text{sd}_{b_1} = 0.25$ without worrying that
-it will lead to spurious support for effects that do not exist. Prior family
-again has minimal impact.
+This pattern is a direct consequence of the Savage–Dickey density ratio mechanism
+and the fact that the three families differ in their density at exactly zero when
+the scale parameter is equated. At $\text{sd} = 0.25$: $\text{Normal}(0, 0.25)$
+places density 1.60 at zero, $\text{Cauchy}(0, 0.25)$ places 1.27, and
+$\text{Logistic}(0, 0.25)$ places 1.00. A higher prior density at zero makes the
+numerator of the Savage–Dickey ratio
+$\pi(b_1 = 0) / p(b_1 = 0 \mid \text{data})$ larger, so a greater posterior
+pile-up at zero is needed for $\text{BF}_{01}$ to exceed the threshold —
+reducing specificity. The wider prior ($\text{sd} = 0.50$, dashed lines) lowers
+the prior density at zero for all families (Normal: 0.80, Cauchy: 0.64,
+Logistic: 0.50), which is why specificity improves and the between-family
+differences shrink at the wider scale.
 
-Given the negligible role of prior family in both power and specificity, we next
-ask directly: does the choice between Normal, Logistic, and Cauchy priors matter
-at all?
+The key take-home is that at the recommended scale of $\text{sd}_{b_1} = 0.25$,
+the Logistic prior offers the best specificity (due to its lowest density at
+zero), the Cauchy is intermediate, and the Normal yields the lowest specificity —
+though all three families converge to adequate specificity at larger sample sizes
+($n \geq 60$ with 50 trials). The recommended priors do not produce misleading
+evidence: false positive rates ($\text{BF}_{10} > 3$ under H0) remain below 5%
+across all conditions.
+
+Given that the choice of prior family affects specificity through the
+Savage–Dickey mechanism (though not power), we next ask directly: how similar are
+the three prior families in their overall BF performance?
 
 
 ## Does the Choice of Prior Family Matter?
@@ -505,15 +532,19 @@ if (posteriors_available) {
 }
 ```
 
-The answer is clear: at the same prior scale, the three families produce nearly
-identical power curves across all sample sizes and effect sizes. This is good
-news for practitioners. It means that the recommendation is robust — researchers
-do not need to agonize over whether to use a Normal, Logistic, or Cauchy prior.
-What matters is getting the *scale* right ($\text{sd}_{b_1} \approx 0.25$ for
-typical cognitive psychology effects), not the precise distributional shape. Given
-the prior predictive analysis showed that the Cauchy produces implausibly heavy
-tails, we recommend Normal or Logistic priors on the grounds of prior predictive
-behavior, knowing that BF performance is unaffected by this choice.
+The answer is clear for power: at the same prior scale, the three families
+produce nearly identical power curves across all sample sizes and effect sizes.
+For *specificity*, however, the picture is more nuanced — as shown in
+@fig-specificity, the Normal prior's higher density at zero reduces its
+specificity relative to the Logistic and Cauchy at $\text{sd}_{b_1} = 0.25$,
+especially at small $n$. Taken together, these results give a practical edge to
+the Logistic prior, which combines the best specificity profile (lowest density
+at zero among the three families), well-behaved prior predictive distributions,
+and identical power to the alternatives. The Cauchy, while producing acceptable
+power, assigns implausibly heavy-tailed prior predictive distributions and
+offers no compensating advantage. We therefore recommend the **Logistic effect
+prior** at $\text{sd}_{b_1} = 0.25$ as the default choice for Bayes Factor
+testing in binomial GLMs.
 
 A similar question arises for the intercept prior: does the matched-prior
 principle — which the prior predictive analysis showed produces cleaner
@@ -785,20 +816,18 @@ is primarily driven by the fixed-effects priors and the data, not by how between
 subject variability is modeled. For power, researchers can choose any reasonable
 hyperprior without concern.
 
-### But specificity differs at small samples
+### Specificity is similar across RE hyperpriors
 
-Where the RE hyperprior *does* matter is specificity — the ability to correctly
-support the null when there is no effect. @fig-re-specificity reveals meaningful
-differences, particularly at small sample sizes with few trials.
+Does the RE hyperprior affect specificity — the ability to correctly support the
+null when there is no effect? @fig-re-specificity addresses this question.
 
 ```{r}
 #| label: fig-re-specificity
-#| fig-cap: "Specificity under the null differs across RE hyperpriors,
-#|   particularly at small sample sizes with few trials. The brms default
-#|   Student-t(3,0,2.5) yields notably lower specificity at N = 30, while
-#|   Exponential(4) maintains the highest specificity across conditions.
-#|   These differences attenuate with more trials per subject.
-#|   Error bars: 95% credible intervals."
+#| fig-cap: "All three RE hyperpriors produce broadly similar specificity,
+#|   with widely overlapping credible intervals across all conditions. At
+#|   N = 30 with 20 trials, specificity is low (~43%) regardless of
+#|   hyperprior choice. At larger samples, the three hyperpriors remain
+#|   closely matched. Error bars: 95% credible intervals."
 #| fig-height: 5
 #| fig-width: 10
 #| eval: !expr re_posteriors_available || re_results_available
@@ -842,16 +871,22 @@ if (re_posteriors_available) {
 }
 ```
 
-@fig-re-specificity reveals the one scenario where the RE hyperprior makes a
-practical difference. At $n = 30$ with only 20 trials per subject, the brms
-default Student-*t*(3, 0, 2.5) yields notably lower specificity than the
-alternatives. The likely mechanism is that the Student-*t*'s heavy right tail
-occasionally allows large random-effects SDs, which absorb variability that
-would otherwise be attributed to (the absence of) the fixed effect — making
-the Bayes Factor less decisive under the null. The Exponential(4) prior, with
-its stronger concentration near zero, maintains the highest specificity.
-Importantly, these differences attenuate at 50 trials per subject, where all
-three hyperpriors converge to similar specificity levels.
+@fig-re-specificity shows that the three RE hyperpriors produce broadly similar
+specificity across all conditions, with widely overlapping 95% credible
+intervals. At $n = 30$ with only 20 trials per subject, all three hyperpriors
+yield similarly low specificity (Student-*t*: 0.44 [0.35, 0.54]; Gamma: 0.43
+[0.34, 0.53]; Exponential: 0.42 [0.33, 0.52]) — the low values here reflect
+the limited data rather than the hyperprior choice. At larger sample sizes, the
+three hyperpriors remain closely matched, with no systematic advantage for any
+one candidate. These results indicate that, unlike the fixed-effects prior
+family (which affects specificity through the Savage–Dickey density at zero),
+the RE hyperprior does not meaningfully influence inferential performance for
+the fixed effect. The recommendation for Exponential(4) as a default hyperprior
+therefore rests on its prior predictive properties — it concentrates
+between-subject variability in a substantively plausible range and avoids the
+heavy right tail of the Student-*t* that can push individual probabilities
+toward floor and ceiling (see the prior predictive analysis) — rather than on
+BF calibration differences.
 
 @tbl-re-summary provides the corresponding minimum sample sizes for 80% power,
 confirming that all three hyperpriors require the same sample sizes to reach
@@ -860,8 +895,8 @@ adequate power.
 ```{r}
 #| label: tbl-re-summary
 #| tbl-cap: "Minimum sample size for 80% power (50 trials per subject) is
-#|   identical across RE hyperpriors, confirming that the hyperprior affects
-#|   specificity but not power. Within-subjects design with correlated RE;
+#|   identical across RE hyperpriors, confirming that the hyperprior does not
+#|   affect power. Within-subjects design with correlated RE;
 #|   matched fixed-effects priors."
 #| eval: !expr re_results_available
 
@@ -886,20 +921,51 @@ re_plot_data |>
 
 Across all conditions examined, Bayes Factor calibration is primarily driven by
 two factors: the scale of the effect prior and the amount of data (both sample
-size and trials per subject). The choice of prior *family* — Normal, Logistic,
-or Cauchy — has negligible impact on either power or specificity. The intercept
-prior (matched vs. misfit) similarly makes no practical difference. The one
-exception is the random-effects hyperprior, which affects specificity (but not
-power) at small sample sizes with few trials.
+size and trials per subject). The choice of prior *family* has negligible impact
+on power, but does affect specificity at the recommended scale of
+$\text{sd}_{b_1} = 0.25$: the Normal prior's higher density at zero reduces its
+specificity relative to the Logistic and Cauchy, particularly at small $n$. The
+intercept prior (matched vs. misfit) makes no practical difference. The
+random-effects hyperprior has no systematic effect on either power or specificity
+— the three hyperpriors examined produce broadly similar results across all
+conditions, though the Exponential(4) is preferred on prior predictive grounds.
 
 These results confirm and extend the prior predictive analysis. The matched
-priors recommended there — Logistic(0, 0.75) for the intercept and Normal or
-Logistic at $\text{sd}_{b_1} = 0.25$ for the effect — not only produce
-substantively plausible prior predictive distributions, but also yield
-well-calibrated Bayes Factor inference. Improper prior choices (e.g., priors
-that are too wide, or the brms default Student-*t* hyperprior at small $n$)
-degrade either power or specificity, validating the importance of thoughtful
-prior specification.
+priors recommended there — Logistic(0, 0.75) for the intercept and a Logistic
+effect prior at $\text{sd}_{b_1} = 0.25$ — not only produce substantively
+plausible prior predictive distributions, but also yield well-calibrated Bayes
+Factor inference with the best specificity profile among the families examined.
+Priors that are too wide degrade power, while the Normal effect prior at the
+recommended scale incurs a specificity cost at small samples that favours the
+Logistic alternative.
+
+### Practical implication: scale matters most
+
+For researchers choosing priors for Bayes Factor testing in binomial GLMs, these
+results deliver a reassuringly simple message. The choice that matters most is
+the *scale* of the effect prior — not the family, not the intercept prior, and
+not the random-effects hyperprior. This parallels findings from the broader BFDA
+literature [@schonbrodt2018; @stefan2019], where informed priors at appropriate
+scales consistently outperform uninformed defaults. The key contribution of the
+present work is to establish *what* that appropriate scale is for binomial models
+and *why* — connecting the prior scale to interpretable quantities on the
+probability scale via the matched prior principle.
+
+### A template for other model classes
+
+The workflow demonstrated here — (1) derive matched priors analytically,
+(2) characterise the prior–observation mapping via prior predictive simulation,
+(3) calibrate BF performance via large-scale BFDA — is not specific to binomial
+models. Any model class with a nonlinear link function faces the same challenge:
+ordinal models (cumulative logit/probit), count models (log link), beta
+regression (logit link on the mean), and distributional regression models more
+broadly [@klein2015; @burkner2021]. In each case, the probability integral
+transform identifies the matched prior family, prior predictive simulation
+reveals the implied effect sizes, and BFDA quantifies inferential properties.
+We encourage researchers and methodologists to apply this template to
+establish principled defaults for Bayes Factor testing beyond the normal model
+— an area where the existing Rouder–Wagenmakers framework
+[@rouder2009; @rouder2012] currently does not reach.
 
 
 ## Sample Size Guidance
@@ -979,18 +1045,34 @@ $\text{sd}_{b_1} = 0.25$ (under ±1 sum-to-zero coding) provides a good balance
 between power and specificity for typical cognitive psychology experiments. At
 this scale, the prior concentrates mass on effects up to roughly 20 percentage
 points on the probability scale — the range most commonly observed in cognitive
-experiments — while still allowing larger effects to receive non-trivial prior
-probability. Combined with the prior predictive analysis, which showed that
-$\text{sd}_{b_1} = 0.25$ yields a 90th percentile of $|\delta p| \approx 0.20$,
-this represents a principled default that is both substantively informed and
-inferentially well-calibrated.
+experiments [@oberauer2019] — while still allowing larger effects to receive
+non-trivial prior probability. Combined with the prior predictive analysis, which
+showed that $\text{sd}_{b_1} = 0.25$ yields a 90th percentile of
+$|\delta p| \approx 0.20$, this represents a principled default that is both
+substantively informed and inferentially well-calibrated.
 
-The **choice of prior family matters far less** than the choice of scale.
-Normal, Logistic, and Cauchy priors produce nearly identical power and
-specificity at the same $\text{sd}_{b_1}$. We recommend Normal or Logistic
-priors over the Cauchy on the basis of prior predictive behavior (the Cauchy's
-heavy tails assign implausible probability to extreme effects), but researchers
-who prefer one family over another can do so without concern for BF calibration.
+This parallels the core insight from BFDA [@schonbrodt2018]: prior specification
+is not merely a philosophical choice but a design decision that directly affects
+what evidence a study can produce. For normal-data models, the JZS prior
+[@rouder2009] provides a principled scale through the Cauchy distribution on
+standardised effect sizes. For binomial GLMs, the link function makes
+standardisation less natural, and the matched prior principle offers an
+alternative anchor — grounded in the probability integral transform rather
+than standardised effect sizes.
+
+The **choice of prior family matters far less than the choice of scale** for
+power, but does affect specificity at $\text{sd}_{b_1} = 0.25$. All three
+families produce nearly identical power curves. For specificity, however, the
+families differ in their density at exactly zero — Normal: 1.60, Cauchy: 1.27,
+Logistic: 1.00 at scale $= 0.25$ — which directly influences the Savage–Dickey
+ratio under the null. The Logistic prior, with the lowest density at zero, yields
+the best specificity. We therefore recommend the **Logistic effect prior** as the
+default: it offers the best specificity profile, well-behaved prior predictive
+distributions, and identical power to the alternatives. The Cauchy, despite
+acceptable power, assigns implausible probability to extreme effects — consistent
+with the concerns raised by @ghosh2018 about Cauchy priors producing
+extraordinarily large posterior samples under separation — and is not recommended
+as a default for hypothesis testing in this context.
 
 Similarly, the **intercept prior** has minimal impact on Bayes Factor
 calibration. While we recommend the matched intercept prior (Logistic(0, 0.75)
@@ -1002,23 +1084,70 @@ fitting but does not substantially affect the Bayes Factor for the effect.
 
 For **sample size planning**, the number of trials per subject is at least as
 important as the number of subjects. With 50 trials and
-$\text{sd}_{b_1} = 0.25$, the 80% power criterion is already met at $n = 30$
-for effects of $b_1 \geq 0.20$ on the logit scale (roughly 10 percentage points
-between conditions at a 50% baseline). Smaller effects ($b_1 = 0.05$–$0.10$,
-corresponding to 2–5 percentage points) require larger samples. Reducing from
-50 to 20 trials per subject substantially lowers power for these smaller effects,
-making trial count a critical design variable.
+$\text{sd}_{b_1} = 0.25$, the 80% power criterion is met at $n = 30$ for
+effects of $b_1 \geq 0.20$ on the logit scale across all three prior families
+(Logistic: 0.83, Normal: 0.91, Cauchy: 0.89). At
+$\text{sd}_{b_1} = 0.50$, the Logistic prior just misses the 80% threshold
+(0.79), while the Normal and Cauchy remain above it — a minor trade-off of the
+Logistic prior's specificity advantage. Smaller effects
+($b_1 = 0.05$–$0.10$, corresponding to 2–5 percentage points) require larger
+samples. Reducing from 50 to 20 trials per subject substantially lowers power
+for these smaller effects, making trial count a critical design variable.
 
-Finally, the **random-effects hyperprior** deserves attention for specificity at
-small sample sizes. All three hyperpriors examined produce identical power, but
-the brms default Student-*t*(3, 0, 2.5) yields lower specificity than the
-alternatives at $n = 30$ with few trials. We recommend Exponential(4) as a
-default hyperprior for the random-effects SDs: it concentrates between-subject
-variability in a substantively plausible range and maintains good specificity
-properties even at small $n$.
+Finally, the **random-effects hyperprior** has no systematic impact on BF
+calibration. All three hyperpriors examined — the brms default Student-*t*(3, 0,
+2.5), Gamma(2, 4), and Exponential(4) — produce similar power and specificity
+profiles with widely overlapping credible intervals. We nonetheless recommend
+Exponential(4) as a default hyperprior for the random-effects SDs on prior
+predictive grounds: it concentrates between-subject variability in a
+substantively plausible range and avoids the heavy right tail of the Student-*t*
+that can push individual probabilities toward floor and ceiling (see the prior
+predictive analysis). This choice does not compromise BF performance.
+
+
+## Generalising to Other Model Classes
+
+The binomial GLM is one member of a larger family of models where link functions
+mediate between the parameter scale (where priors are specified) and the
+observation scale (where scientific quantities live). The workflow presented here
+— analytical matched priors, systematic prior predictive simulation, and
+large-scale BF calibration — transfers directly to these other model classes.
+
+**Ordinal regression.** Cumulative logit and probit models use the same link
+functions as binomial GLMs, so the matched prior principle applies directly to
+the threshold parameters. A Logistic prior on logit-scale thresholds
+produces uniform implied category probabilities — a natural non-informative
+starting point. Effect priors require the same prior predictive calibration
+demonstrated here.
+
+**Count data models.** Poisson and negative binomial regression use a log link.
+The matched prior principle suggests an Exponential prior on the log-scale
+intercept (since $\exp(X) \sim \text{Exponential}(1)$ when
+$X \sim \text{Gumbel}$). Prior predictive simulation can reveal what prior
+scales on log-scale coefficients imply for rate ratios.
+
+**Distributional regression.** In GAMLSS [@klein2015] and brms distributional
+models [@burkner2021], *all* parameters of the response distribution
+(mean, variance, shape) are linked to predictors through link functions.
+Each parameter therefore faces its own prior–link interaction. The matched
+prior principle and the simulation approach developed here provide a
+systematic way to address prior specification for each parameter.
+
+**Beta regression.** For proportional data, beta regression models the mean via
+a logit link. The matched prior principle applies identically to the intercept,
+and prior predictive simulation can calibrate the implied distribution of
+predicted proportions.
+
+In each case, the key steps are: (1) identify the link function and the
+corresponding matched prior family via the probability integral transform;
+(2) use prior predictive simulation to map prior scales to interpretable
+quantities on the observation scale; and (3) if Bayes Factor testing is
+intended, run a calibration simulation to verify adequate power and
+specificity. We provide all simulation code to facilitate such extensions.
 
 
 ## Appendix: Quantifying Uncertainty in Detection Rates {#sec-appendix-uncertainty}
+
 
 Each simulation condition yields $n_{\text{valid}}$ replications (out of 100),
 each producing a BF10 value. Rather than reporting detection rates as

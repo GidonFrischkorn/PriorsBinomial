@@ -67,7 +67,7 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
   ) +
     ggplot2::geom_histogram(
       ggplot2::aes(y = ggplot2::after_stat(density)),
-      bins = 60, alpha = 0.45, position = "identity", linewidth = 0.2
+      bins = 60, alpha = 0.30, position = "identity", linewidth = 0.2
     ) +
     ggplot2::geom_line(
       data = ref_data,
