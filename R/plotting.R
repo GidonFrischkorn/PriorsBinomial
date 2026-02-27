@@ -77,7 +77,7 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
     ) +
     ggplot2::scale_x_continuous("Success probability p", limits = c(0, 1),
                                  expand = c(0, 0)) +
-    ggplot2::scale_y_continuous("Density") +
+    ggplot2::scale_y_continuous("Density", limits = c(0, 5)) +
     ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_colour_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::facet_grid(
@@ -128,8 +128,8 @@ plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
       vjust = 1.5, hjust = -0.1, size = 3, color = "grey40", inherit.aes = FALSE
     ) +
     ggplot2::scale_x_continuous("Effect size on probability scale (delta_p)",
-                                 limits = c(-1, 1),
-                                 breaks = seq(-1, 1, 0.25)) +
+                                 limits = c(-0.75, 0.75),
+                                 breaks = seq(-0.75, 0.75, 0.25)) +
     ggplot2::scale_y_discrete("SD of effect prior (sd_b1)") +
     ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
