@@ -36,6 +36,48 @@ summaries <- select(res, all_of(c(design_cols, stat_cols)))
 saveRDS(summaries, here("output", "bf_calibration_summaries.rds"))
 message("Saved: output/bf_calibration_summaries.rds  (", nrow(summaries), " conditions)")
 
+# --- Continuous BF summaries (median, percentiles on log10 scale) ------------
+
+results_dir_cont <- here("output", "Simulation_BFCalibration")
+
+if (!dir.exists(results_dir_cont)) {
+  message("Per-condition files not found in ", results_dir_cont,
+          ". Skipping continuous BF computation.")
+} else {
+  n_cond <- nrow(summaries)
+  cont_rows <- vector("list", n_cond)
+
+  for (i in seq_len(n_cond)) {
+    cond_file <- file.path(results_dir_cont, paste0("BFCalib_Cond-", i, ".rds"))
+    if (!file.exists(cond_file)) {
+      warning("Missing: ", cond_file)
+      next
+    }
+    cond_data   <- readRDS(cond_file)
+    bf10_vec    <- cond_data$results[, "BF10"]
+    bf10_valid  <- bf10_vec[!is.na(bf10_vec)]
+    log10_bf    <- log10(bf10_valid)
+
+    cont_rows[[i]] <- c(
+      as.list(cond_data$condition),
+      list(
+        median_log10_BF10 = median(log10_bf),
+        mean_log10_BF10   = mean(log10_bf),
+        q10_log10_BF10    = unname(quantile(log10_bf, 0.10)),
+        q25_log10_BF10    = unname(quantile(log10_bf, 0.25)),
+        q75_log10_BF10    = unname(quantile(log10_bf, 0.75)),
+        q90_log10_BF10    = unname(quantile(log10_bf, 0.90)),
+        n_valid           = length(bf10_valid)
+      )
+    )
+  }
+
+  continuous_summaries <- bind_rows(cont_rows)
+  saveRDS(continuous_summaries, here("output", "bf_calibration_continuous.rds"))
+  message("Saved: output/bf_calibration_continuous.rds  (",
+          nrow(continuous_summaries), " conditions)")
+}
+
 # --- Bayesian posteriors for detection-rate uncertainty -----------------------
 
 results_dir  <- here("output", "Simulation_BFCalibration")

@@ -82,8 +82,8 @@ fit_and_get_bf <- function(dat,
 
 
   # Bridge sampling for marginal likelihoods
-  ml_h1 <- bridgesampling::bridge_sampler(fit_h1, silent = silent)
-  ml_h0 <- bridgesampling::bridge_sampler(fit_h0, silent = silent)
+  ml_h1 <- suppressMessages(bridgesampling::bridge_sampler(fit_h1, silent = silent))
+  ml_h0 <- suppressMessages(bridgesampling::bridge_sampler(fit_h0, silent = silent))
 
   bf10 <- bridgesampling::bf(ml_h1, ml_h0)$bf
 
@@ -300,7 +300,7 @@ fit_and_get_bf_sd_re <- function(dat,
                                  sd_prior_re  = c("default", "gamma", "exponential"),
                                  random_slope = FALSE,
                                  n_chains     = 4,
-                                 n_iter       = 2500,
+                                 n_iter       = 2000,
                                  n_cores      = 1,
                                  silent       = TRUE) {
   link        <- match.arg(link)
@@ -362,6 +362,98 @@ fit_and_get_bf_sd_re <- function(dat,
   if (!is.finite(post_at_0) || post_at_0 <= 0) return(NA_real_)
 
   bf10 <- prior_at_0 / post_at_0
+  if (!is.finite(bf10)) return(NA_real_)
+  as.numeric(bf10)
+}
+
+
+#' Fit H1 and H0 brms models with random effects and return BF10 via bridge sampling
+#'
+#' Mirrors fit_and_get_bf_sd_re() but uses bridge sampling to estimate marginal
+#' likelihoods for H1 and H0 separately, rather than the Savage-Dickey density
+#' ratio. This provides an independent check on the SD ratio by integrating
+#' over the entire parameter space rather than evaluating at a single point.
+#'
+#' H1: y | trials(n) ~ 1 + condition + (1 | subject_id)
+#' H0: y | trials(n) ~ 1 + (1 | subject_id)
+#'
+#' @param dat          data.frame. Columns: y, n, condition (±1), subject_id.
+#' @param link         Character. "logit" or "probit".
+#' @param dist_b0      Character. Intercept prior: "logistic" or "normal".
+#' @param sd_b0        Numeric. Intercept prior scale. Default 0.75.
+#' @param dist_b1      Character. Effect prior: "normal", "logistic", or "cauchy".
+#' @param sd_b1        Numeric. Effect prior scale.
+#' @param sd_prior_re  Character. SD prior: "default", "gamma", or "exponential".
+#' @param n_chains     Integer. MCMC chains. Default 4.
+#' @param n_iter       Integer. MCMC iterations per chain. Default 2500.
+#' @param n_cores      Integer. Parallel chains. Default 1.
+#' @param silent       Logical. Suppress brms messages. Default TRUE.
+#'
+#' @return Numeric scalar. BF10. Returns NA_real_ on error.
+fit_and_get_bf_bs_re <- function(dat,
+                                 link         = c("logit", "probit"),
+                                 dist_b0      = c("logistic", "normal"),
+                                 sd_b0        = 0.75,
+                                 dist_b1      = c("normal", "logistic", "cauchy"),
+                                 sd_b1        = 0.25,
+                                 sd_prior_re  = c("default", "gamma", "exponential"),
+                                 n_chains     = 4,
+                                 n_iter       = 2000,
+                                 n_cores      = 1,
+                                 silent       = TRUE) {
+  link        <- match.arg(link)
+  dist_b0     <- match.arg(dist_b0)
+  dist_b1     <- match.arg(dist_b1)
+  sd_prior_re <- match.arg(sd_prior_re)
+
+  family <- switch(link,
+                   logit  = binomial(link = "logit"),
+                   probit = binomial(link = "probit")
+  )
+
+  prior_intercept <- make_brms_prior(dist_b0, sd_b0, class = "Intercept")
+  prior_b1        <- make_brms_prior(dist_b1, sd_b1,
+                                     class = "b", coef = "condition")
+  prior_sd_int    <- make_brms_sd_prior(sd_prior_re, group = "subject_id",
+                                        coef = "Intercept")
+
+  # H1: includes fixed effect of condition + random intercept
+  fit_h1 <- brms::brm(
+    formula      = y | trials(n) ~ 1 + condition + (1 | subject_id),
+    data         = dat,
+    family       = family,
+    prior        = c(prior_intercept, prior_b1, prior_sd_int),
+    chains       = n_chains,
+    iter         = n_iter,
+    cores        = n_cores,
+    sample_prior = TRUE,
+    save_pars    = brms::save_pars(all = TRUE),
+    silent       = if (silent) 2L else 0L,
+    refresh      = 0,
+    backend      = "cmdstanr"
+  )
+
+  # H0: intercept only + random intercept (condition effect removed)
+  fit_h0 <- brms::brm(
+    formula      = y | trials(n) ~ 1 + (1 | subject_id),
+    data         = dat,
+    family       = family,
+    prior        = c(prior_intercept, prior_sd_int),
+    chains       = n_chains,
+    iter         = n_iter,
+    cores        = n_cores,
+    sample_prior = TRUE,
+    save_pars    = brms::save_pars(all = TRUE),
+    silent       = if (silent) 2L else 0L,
+    refresh      = 0,
+    backend      = "cmdstanr"
+  )
+
+  # Bridge sampling for marginal likelihoods
+  ml_h1 <- suppressMessages(bridgesampling::bridge_sampler(fit_h1, silent = silent))
+  ml_h0 <- suppressMessages(bridgesampling::bridge_sampler(fit_h0, silent = silent))
+
+  bf10 <- bridgesampling::bf(ml_h1, ml_h0)$bf
   if (!is.finite(bf10)) return(NA_real_)
   as.numeric(bf10)
 }

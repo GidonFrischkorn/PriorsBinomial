@@ -1,26 +1,43 @@
 ---
 title: "Default Priors for Binomial GLMs: Prior Predictive Analysis"
+shorttitle: "Priors for Binomial GLMs"
 author:
   - name: Klaus Oberauer
-    affiliation: University of Zurich
+    orcid: 0000-0001-8815-6189
+    affiliations:
+      - name: University of Zurich
+        department: Department of Psychology
   - name: Joscha Dutli
-    affiliation: University of Zurich
+    affiliations:
+      - name: University of Zurich
+        department: Department of Psychology
   - name: Philipp Musfeld
-    affiliation: University of Zurich
-  - name: Gidon Frischkorn
-    affiliation: University of Lucerne
-date: today
+    affiliations:
+      - name: University of Zurich
+        department: Department of Psychology
+  - name: Gidon T. Frischkorn
+    orcid: 0000-0002-5055-9764
+    email: gidon.frischkorn@unilu.ch
+    corresponding: true
+    affiliations:
+      - name: University of Lucerne
+        department: Faculty of Health Sciences and Medicine
+author-note:
+  disclosures:
+    study-registration: "This study was not preregistered."
+    data-sharing: "Simulation code and analysis scripts are available at [repository link]."
+    conflict-of-interest: "The authors declare no conflicts of interest."
+    financial-support: "This research was supported by a grant from the Swiss National Science Foundation (SNSF)."
+    authorship-agreements: |
+      Klaus Oberauer: Conceptualization, Methodology, Writing -- Original Draft.
+      Joscha Dutli: Methodology, Software, Formal Analysis.
+      Philipp Musfeld: Methodology, Software, Formal Analysis.
+      Gidon T. Frischkorn: Conceptualization, Methodology, Software, Formal Analysis, Visualization, Writing -- Original Draft.
 format:
-  html:
-    toc: true
-    toc-depth: 3
-    code-fold: true
-    embed-resources: true
-  pdf:
-    toc: false
-    toc-depth: 3
-  docx:
-    number-sections: false
+  apaquarto-docx: default
+  apaquarto-pdf:
+    keep-tex: true
+  apaquarto-html: default
 execute:
   echo: false
   warning: false
@@ -30,23 +47,18 @@ csl: apa.csl
 abstract: |
   Bayesian inference for binomial generalized linear models (GLMs) requires
   priors on the regression coefficients, but no principled defaults exist for
-  logistic or probit regression. We derive recommendations via two
-  complementary approaches. First, we exploit the probability integral
-  transform to identify *matched priors* — prior distributions whose family
-  mirrors the link function — that induce an exactly uniform distribution on
-  the success-probability scale. Specifically, a Logistic(0, 1) prior on
-  the logit scale and a Normal(0, 1) prior on the probit scale both yield
-  Uniform(0, 1) on the probability scale. Second, we characterise prior
-  predictive distributions across 720 factorial combinations of link
-  function, prior family, and prior scale via large-scale simulation.
-  We recommend matched intercept priors at scale 0.75 (< 10% floor/ceiling mass)
-  and Normal or Logistic effect priors at scale 0.25 (90th percentile of
-  |δp| ≈ 0.20) for experiments in cognitive psychology. Cauchy priors are
-  discouraged due to heavy tails that assign implausible prior probability
-  to large effects. For random-effects models, we recommend Exponential(4)
-  hyperpriors on between-subject SDs instead of the brms default
-  half-Student-t(3, 0, 2.5), which concentrates excessive mass near the
-  floor/ceiling boundary. Ready-to-use brms prior specifications are provided.
+  logistic or probit regression. The nonlinear link function creates a
+  prior--link interaction: priors that appear reasonable on the coefficient
+  scale can produce implausible distributions on the probability scale. We
+  address this problem via two complementary approaches. First, we exploit
+  the probability integral transform to identify *matched priors* --- prior
+  families that mirror the link function and induce exactly uniform
+  distributions on the probability scale. Second, we characterise implied
+  prior predictive distributions across 720 factorial combinations of link
+  function, prior family, and prior scale via large-scale simulation. Based
+  on these analyses, we recommend matched intercept priors at scale 0.75,
+  effect priors at scale 0.25, and Exponential(4) hyperpriors for
+  random-effects SDs. Ready-to-use brms prior specifications are provided.
 ---
 
 ```{r}
@@ -71,276 +83,148 @@ draws_long <- readRDS(here("output", "prior_predictive_draws.rds"))
 
 ## Introduction
 
-In cognitive psychology, the dependent variable is often accuracy: the number
-of correct responses $k$ out of $n$ trials. We model these data with a
-binomial generalized linear model (GLM):
+A researcher fitting a logistic regression in `brms` faces an immediate practical question: what prior should they place on the regression coefficients? For normally distributed data, @rouder2012 established the widely adopted JZS prior, enabling routine Bayes Factor computation via JASP and BayesFactor. No equivalent defaults exist for binomial GLMs --- the workhorse model for accuracy data ($k$ correct out of $n$ trials) in cognitive psychology.
 
-$$k_i \sim \text{Binomial}(n_i,\; p_i)$$
-
-where the success probability $p_i$ is related to a linear predictor via a
-link function $g$:
-
-$$g(p_i) = b_0 + b_1 x_i$$
-
-Two common choices for $g$ are the **logit link** (logistic regression) and
-the **probit link** (probit regression), corresponding to the CDFs of the
-logistic and standard normal distributions, respectively.
-
-Fitting these models in a Bayesian framework requires priors
-on the coefficients $b_0$ and $b_1$. Inferences — especially Bayes Factor
-model comparisons — are sensitive to prior specification
-[@wagenmakers2018a; @schonbrodt2018], so choosing priors carefully is
-essential. For normally distributed data, @rouder2012 established a widely
-adopted family of default priors (the JZS prior), enabling routine Bayes
-Factor computation via JASP and BayesFactor. No equivalent defaults exist
-for binomial GLMs.
-
-This gap is consequential because the nonlinear link function in GLMs creates
-a **prior–link interaction**: a prior that appears reasonable on the
-regression-coefficient scale may produce implausible distributions on the
-probability scale, a concern raised in the estimation context by
-@gelman2008 and @ghosh2018. These authors addressed the problem of
-separation and weakly informative priors for logistic regression — focusing
-on posterior estimation and prediction. We address a complementary problem:
+This gap matters because the nonlinear link function in GLMs creates a **prior--link interaction**: a prior that appears reasonable on the regression-coefficient scale can produce implausible distributions on the probability scale [@gelman2008; @ghosh2018]. Previous work addressed this
+problem for posterior estimation; we address the complementary problem of
 choosing priors that produce well-calibrated *Bayes Factors* for hypothesis
-testing about experimental effects.
+testing [@wagenmakers2018a; @schonbrodt2018].
 
-More broadly, the prior–link interaction we study here is not unique to
-binomial models. It arises whenever a model maps parameters through a
-nonlinear transformation — including ordinal, count, and distributional
-regression models [e.g., GAMLSS; @klein2015; @burkner2021]. The approach
-we develop — combining analytical prior predictive results with large-scale
-simulation — can serve as a **template** for establishing principled priors in
-any model class where link functions mediate between the parameter and
-observation scale.
+We model accuracy data as $k_i \sim \text{Binomial}(n_i, p_i)$ with
+$g(p_i) = b_0 + b_1 x_i$, where $g$ is either the **logit** or **probit**
+link. We address four questions:
 
-### Approach
+1. **What prior family and scale produce well-behaved baseline probabilities?**
+   The intercept prior determines the distribution of $p$ before any
+   experimental manipulation --- can we identify a principled default?
+2. **What effect prior scale concentrates mass on plausible effect sizes?**
+   The prior on $b_1$ implies a distribution of $\delta p$ --- the difference
+   in success probability between conditions --- on the probability scale.
+   What scale matches typical effects in cognitive experiments?
+3. **Does the choice of prior family matter?** Normal, Logistic, and Cauchy
+   priors differ in tail behaviour --- how much does this affect the implied
+   prior predictive distribution?
+4. **How should priors be specified for random-effects models?** Most
+   experiments require subject-level random effects --- what hyperprior keeps
+   between-subject variability in a substantively plausible range?
 
 Following the Bayesian workflow outlined by @gelman2020workflow and
-@schad2021, we derive prior recommendations based on two strategies:
+@schad2021, we combine two strategies: (1) analytical derivation of *matched
+priors* via the probability integral transform, yielding exact results for
+the intercept prior [@gelman1996; @gabry2019; @betancourt2018]; and (2)
+large-scale prior predictive simulation across 720 factorial combinations of
+link function (logit, probit), intercept prior family (Logistic, Normal,
+Cauchy), intercept prior SD (0.50--1.50), effect prior family (Normal,
+Logistic, Cauchy), and effect prior SD (0.10--2.00). All simulations use a
+two-condition design with **sum-to-zero contrast** $x \in \{+1, -1\}$, so
+that $\delta p = g^{-1}(b_0 + b_1) - g^{-1}(b_0 - b_1)$. This coding
+ensures the prior predictive distribution of $\delta p$ is symmetric around
+zero when the prior on $b_1$ is symmetric --- a desirable property for a
+default prior (see [How does contrast coding interact with the prior?]).
 
-1. Analytical derivation of what certain prior choices imply on the
-probability scale, yielding exact results for matched priors — exploiting
-the probability integral transform to establish a principled anchor.
-2. Large-scale prior predictive simulation to characterize implied
-distributions of success probabilities and effect sizes across 720
-factorial combinations of prior specifications
-[@gelman1996; @gabry2019; @betancourt2018].
+## What Prior Makes the Intercept Maximally Uninformative?
 
-The simulations vary:
+The key to choosing an intercept prior is the **probability integral
+transform**: for any continuous distribution $D$ with CDF $F$, if
+$X \sim D$, then $F(X) \sim \text{Uniform}(0, 1)$. In a binomial GLM, the
+inverse link $g^{-1}$ *is* a CDF, so we can exploit this result
+directly.[^prior-lit]
 
-- Link function: logit, probit
-- Intercept prior family: Logistic, Normal, Cauchy
-- Intercept prior SD ($\text{sd}_{b_0}$): 0.50, 0.75, 1.00, 1.50
-- Effect prior family: Normal, Logistic, Cauchy
-- Effect prior SD ($\text{sd}_{b_1}$): 0.10 to 2.00
-
-All simulations use a minimal two-condition design with **sum-to-zero
-contrast** $x \in \{+1, -1\}$, so that:
-
-$$\delta p = g^{-1}(b_0 + b_1) - g^{-1}(b_0 - b_1)$$
-
-This coding ensures the prior predictive distribution of $\delta p$ is
-symmetric around zero when the prior on $b_1$ is symmetric around zero —
-a desirable property for a default prior (see
-[Contrast coding and prior width]).
-
-## The Matched Prior Principle
-
-### Exact analytical results
-
-Prior specification for GLMs is complicated by the fact that priors are
-placed on the linear predictor scale (regression coefficients) but their
-implications play out on the response scale (probabilities). Previous work
-on priors for logistic regression has focused on estimation problems:
-@gelman2008 proposed weakly informative Cauchy(0, 2.5) priors to handle
-separation, and @ghosh2018 established theoretical conditions for posterior
-existence under Cauchy priors. @greenland2015 compared penalization
-approaches including log-F priors. These contributions address posterior
-estimation and prediction, but not the distinct requirements of Bayes
-Factor hypothesis testing, where the prior density at the point null
-directly enters the Savage–Dickey ratio [@ly2016; @bartos2023].
-
-We take a different starting point: the **probability integral transform**.
-For any continuous distribution $D$ with CDF $F$, if $X \sim D$, then
-$F(X) \sim \text{Uniform}(0, 1)$.
-
-Applied to binomial GLMs, the inverse link function $g^{-1}$ *is* the CDF
-of some distribution. Therefore:
+[^prior-lit]: Previous work on priors for logistic regression focused on
+estimation problems: @gelman2008 proposed weakly informative Cauchy(0, 2.5)
+priors for separation, @ghosh2018 established conditions for posterior
+existence, and @greenland2015 compared penalization approaches. These
+contributions address estimation, not the distinct requirements of Bayes
+Factor testing, where the prior density at the point null directly enters
+the Savage--Dickey ratio [@ly2016; @bartos2023].
 
 | Link | Inverse link $g^{-1}$ | Matched prior | Implied prior on $p$ |
 |------|----------------------|---------------|----------------------|
-| logit | logistic CDF | $\text{Logistic}(0, 1)$ | $\text{Uniform}(0, 1)$ — **exact** |
-| probit | normal CDF $\Phi$ | $\text{Normal}(0, 1)$ | $\text{Uniform}(0, 1)$ — **exact** |
+| logit | logistic CDF | $\text{Logistic}(0, 1)$ | $\text{Uniform}(0, 1)$ --- **exact** |
+| probit | normal CDF $\Phi$ | $\text{Normal}(0, 1)$ | $\text{Uniform}(0, 1)$ --- **exact** |
 
-For the logit link, the inverse link $g^{-1}$ is the logistic CDF, so
-placing a Logistic prior on $b_0$ produces probabilities that are exactly
-uniform on $(0, 1)$. The same cancellation holds for the probit link and
-the normal CDF. This is not an approximation — it follows directly from
-the probability integral transform. Scaling the prior below $\text{sd} = 1$
-concentrates mass away from 0 and 1, producing a regularized intercept
-prior suited to experiments where extreme baseline probabilities are unlikely.
+Placing a Logistic prior on $b_0$ under the logit link produces
+probabilities that are exactly uniform on $(0, 1)$; the same holds for a
+Normal prior under the probit link. This is not an approximation --- it
+follows directly from the probability integral transform. Scaling the prior
+below $\text{sd} = 1$ concentrates mass away from 0 and 1, producing a
+regularized intercept prior suited to experiments where extreme baseline
+probabilities are unlikely.
 
-The **matched prior** at scale 1 is therefore maximally uninformative on
-the probability scale. This provides a principled, interpretable anchor
-that contrasts with the typical approach of specifying priors based on
-intuition about regression coefficients — a strategy that
-@gelman2017prior cautioned against, arguing that priors can often only be
-understood in the context of the likelihood and the implied observables.
+The **matched prior** at scale 1 is therefore maximally uninformative on the
+probability scale --- a principled anchor that contrasts with specifying
+priors based on intuition about regression coefficients, a strategy
+@gelman2017prior cautioned against. The matched prior principle generalises
+to any model with a CDF-based link function; we return to this point in the
+[Recommendations].
 
-### Generality: a template for other link-based models
+We use exact analytical density formulas (derived via the change-of-variables
+theorem) to overlay reference curves on the simulation figures below.[^density-formulas]
 
-The matched prior principle generalises to any model that maps parameters
-through a CDF. For example, in a cumulative ordinal model with a logit
-link, a Logistic prior on the threshold parameters produces uniform
-implied probabilities across response categories. In a log-link Poisson
-model, an Exponential(1) prior on the rate produces a Uniform on the CDF
-scale. More broadly, any distributional regression model
-[@klein2015; @burkner2021] where the response distribution parameters are
-linked to linear predictors faces the same prior–link interaction. The
-approach developed here — identify the matched family, characterise
-deviations via prior predictive simulation, and calibrate Bayes Factor
-performance — can be applied as a template wherever such interactions
-arise.
-
-### Analytical density formulas
-
-We can derive the implied density of $p = g^{-1}(b_0)$ analytically via
-the change-of-variables formula. For the logit link with a
-$\text{Logistic}(0, s)$ prior on $b_0$:
-
-$$f(p) = \frac{f_{\text{Logis}}(\text{logit}(p),\; 0,\; s)}{p(1-p)}$$
-
-At $s = 1$, the logistic density in the numerator and the Jacobian term
-$p(1-p)$ cancel exactly, so $f(p) = 1$ — a uniform density on $(0,1)$.
-For the probit link with a $\text{Normal}(0, \sigma)$ prior on $b_0$:
-
-$$f(p) = \frac{\phi(\Phi^{-1}(p)/\sigma)/\sigma}{\phi(\Phi^{-1}(p))}
-= \frac{1}{\sigma} \cdot \frac{\phi(\Phi^{-1}(p)/\sigma)}{\phi(\Phi^{-1}(p))}$$
-
-At $\sigma = 1$, the standard normal densities in numerator and denominator
-cancel, again yielding $f(p) = 1$.
-
-We use these exact formulas to overlay analytical reference curves on the
-simulation figures below.
+[^density-formulas]: For the logit link with a $\text{Logistic}(0, s)$ prior
+on $b_0$: $f(p) = f_{\text{Logis}}(\text{logit}(p), 0, s) / [p(1-p)]$. At
+$s = 1$, the logistic density and the Jacobian $p(1-p)$ cancel, giving
+$f(p) = 1$. For the probit link with a $\text{Normal}(0, \sigma)$ prior:
+$f(p) = \phi(\Phi^{-1}(p)/\sigma) / [\sigma \cdot \phi(\Phi^{-1}(p))]$. At
+$\sigma = 1$, the normal densities cancel, again yielding $f(p) = 1$.
 
 ### Why misfit matters: current software defaults
 
-By default, brms [@burkner2017; @burkner2018] places a $\text{student\_t}(3, 0, 2.5)$ prior on the
-intercept (applied to the centered design matrix, with a data-driven scale
-of at least 2.5) and a flat, improper prior on all population-level effects.
-Standard deviations in multilevel models receive a half-$\text{student\_t}$
-prior with a data-driven scale. These defaults are designed for estimation
-stability across a wide range of models, not for hypothesis testing
-[@gelman2008].
+Current `brms` [@burkner2017; @burkner2018] defaults prioritize estimation
+stability, not hypothesis testing --- and they create a **prior--link
+misfit** for logistic regression. By default, `brms` places a
+$\text{student\_t}(3, 0, 2.5)$ prior on the intercept and a flat, improper
+prior on all population-level effects. The Student-$t$ intercept prior,
+passed through the logit link, concentrates more mass near $p = 0$ and
+$p = 1$ than the matched Logistic prior. The flat slope prior is more
+problematic still: it treats $|\delta p|$ near 1 as equally plausible as
+$|\delta p|$ near 0. For Bayes Factor testing via the Savage--Dickey density
+ratio, improper or overly diffuse priors are not merely inconvenient --- they
+are undefined or produce BFs biased toward H1
+[@schonbrodt2018; @consonni2018; @gelman2008].
 
-Both defaults create a **prior–link misfit** for logistic regression. The
-Student-$t$ intercept prior, passed through the logit link, yields a
-logit-$t$ distribution on $p$ with heavier tails than the matched Logistic
-prior, concentrating more mass near 0 and 1. The flat slope prior is more
-problematic still: it places equal probability on arbitrarily large effect
-sizes, so $|\delta p|$ near 1 is treated as equally plausible as $|\delta
-p|$ near 0. For Bayes Factor testing via the Savage–Dickey density ratio,
-such improper or overly diffuse priors are not merely inconvenient — they
-are undefined or produce BFs that are biased toward H1
-[@schonbrodt2018; @consonni2018].
+Before examining the simulation results, we address one more design choice
+that interacts with the prior: the contrast coding of the experimental
+factor.
 
-## Contrast Coding and Prior Width
+## How Does Contrast Coding Interact with the Prior?
 
 The choice of contrast coding directly scales the effect coefficient $b_1$
-and therefore the implied prior on the probability scale.
+and therefore the implied prior on the probability scale. With sum-to-zero
+codes $x \in \{+1, -1\}$, the effect $b_1$ represents the deviation of each
+condition from the grand mean, and the distribution of $\delta p$ is
+**symmetric** around zero when the prior on $b_1$ is symmetric --- a
+desirable property for a default prior. All simulations here use $\pm 1$
+coding [see @schad2020 for a thorough treatment of contrast coding in
+regression].
 
-### Sum-to-zero coding ±1
-
-With codes $x \in \{+1, -1\}$, the effect $b_1$ represents the deviation
-of each condition from the grand mean. The distribution of $\delta p$ is
-**symmetric** around zero when the prior on $b_1$ is symmetric — a
-desirable property for a default prior. All simulations here use ±1 coding
-[see @schad2020 for a thorough treatment of contrast coding in regression].
-
-### Treatment coding (0/1)
-
-With treatment coding $x \in \{0, 1\}$, the baseline condition is modelled
-by $b_0$ alone, whereas the treatment condition is modelled by $b_0 + b_1$.
-The effect on the probability scale is
-$\delta p = g^{-1}(b_0 + b_1) - g^{-1}(b_0)$.
-
-When the prior on $b_0$ is centred at zero, $\delta p$ remains symmetric
-around zero — the nonlinearity of $g^{-1}$ does not by itself introduce
-skewness. However, treatment coding has two practical disadvantages compared
-with sum-to-zero coding. First, the prior probability mass is distributed
-asymmetrically across condition means: one condition's probability depends on
-$b_0$ alone, while the other depends on $b_0 + b_1$, so the two conditions
-carry different amounts of prior uncertainty. Second, if the intercept prior
-mean is shifted away from zero (e.g., to reflect an expected baseline
-accuracy above chance), the asymmetry in the definition of $\delta p$ leads
-to a skewed prior predictive distribution of the effect — a problem that also
-affects sum-to-zero coding but to a lesser degree, because both conditions
-are shifted symmetrically relative to the intercept.
-
+With treatment coding ($x \in \{0, 1\}$), one condition depends on $b_0$
+alone and the other on $b_0 + b_1$, creating asymmetric prior uncertainty
+across conditions. If the intercept prior mean is shifted away from zero,
+this asymmetry also skews the prior predictive distribution of $\delta p$.
 We therefore recommend sum-to-zero ($\pm 1$) coding, which distributes the
-effect symmetrically across both conditions and produces a symmetric prior
-predictive for $\delta p$ under any intercept prior centred at zero.
+effect symmetrically. Guidance for adapting the recommended prior widths to
+other contrast codes and predictor scales is provided in the
+[Recommendations].
 
-### Scaling conversion
+## What Does the Intercept Prior Imply on the Probability Scale?
 
-When contrast codes are scaled by factor $c$ (e.g., $\pm c$ instead of
-$\pm 1$), the implied effect on the link scale is
-$\delta = b_1 \cdot (x_+ - x_-) = 2c \cdot b_1$.
-To keep $\text{SD}(\delta)$ constant, the prior on $b_1$ must be widened
-by the inverse of $c$:
-
-$$\text{sd}_{b_1}(\text{coding } \pm c) = \frac{\text{sd}_{b_1}(\text{coding } \pm 1)}{c}$$
-
-Smaller contrast weights require a *wider* prior on $b_1$ to induce the
-same prior on the probability-scale effect.
-
-For example, a researcher using half-unit coding ($\pm 0.5$) should specify
-$\text{sd}_{b_1} = 0.50$ to obtain the same prior predictive distribution
-of $\delta p$ as $\text{sd}_{b_1} = 0.25$ under $\pm 1$ coding. Orthonormal
-coding ($\pm 1/\sqrt{2}$) requires $\text{sd}_{b_1} \approx 0.354$ for the
-same implied effect size distribution.
-
-### No-intercept parameterization (0 + coding in brms)
-
-In `brms`, specifying a formula with `0 + condition` removes the intercept
-and estimates separate coefficients for each condition level. In a
-two-condition design, this yields coefficients $b_0$ and $b_1$ that directly
-represent the condition means on the link scale, so that:
-
-$$p_0 = g^{-1}(b_0), \qquad p_1 = g^{-1}(b_1), \qquad \delta p = g^{-1}(b_1) - g^{-1}(b_0)$$
-
-Under this parameterization, the matched prior principle applies to each
-coefficient independently: placing $\text{Logistic}(0, 1)$ on both $b_0$ and
-$b_1$ under the logit link (or $\text{Normal}(0, 1)$ under the probit link)
-induces independent $\text{Uniform}(0, 1)$ marginals on each condition
-probability. The implied prior on $\delta p$ then follows from the
-difference of two independent uniform random variables, yielding a
-symmetric triangular distribution on $(-1, 1)$.
-
-Because the interpretation of each coefficient differs from the
-intercept-plus-slope parameterization, the recommended prior widths from the
-present analysis do not transfer directly. Instead, each condition mean
-should receive a matched prior scaled to reflect beliefs about the range of
-plausible success probabilities (e.g., $\text{sd} = 0.75$ to avoid
-floor/ceiling effects), and the implied prior on $\delta p$ should be
-checked via prior predictive simulation.
-
-## Results: Intercept Prior
-
-### Figure 1: Prior predictive of $p$ by intercept prior
+The intercept $b_0$ determines the baseline success probability before any
+experimental manipulation. A poorly chosen intercept prior can place
+substantial mass near $p = 0$ or $p = 1$, predicting that participants
+perform at floor or ceiling even before any experimental effect is applied.
+How do different intercept priors perform?
 
 ```{r}
 #| label: fig-1-p-intercept
-#| fig-cap: "Histograms of the prior predictive distribution of success
-#|   probability p = g^{-1}(b0) for each intercept prior SD (rows) and link
-#|   function (columns), shown separately for three prior families (Logistic,
-#|   Normal, Cauchy; colour-coded). Effect prior fixed at Logistic(0, 0.25).
-#|   Dashed curves show the exact analytical density for the matched prior
-#|   (Logistic for logit, Normal for probit) at each sd_b0 value. At
-#|   sd_b0 = 1.0, the matched prior histogram coincides with the flat
-#|   (uniform) reference curve, providing visual validation of the probability
-#|   integral transform result."
+#| fig-cap: "Prior predictive distribution of success probability
+#|   p = g^{-1}(b0) for each intercept prior SD (rows) and link function
+#|   (columns). At sd_b0 = 1.0, the matched prior (Logistic for logit,
+#|   Normal for probit) produces a perfectly uniform distribution --- the
+#|   visual signature of the probability integral transform. Reducing sd_b0
+#|   to 0.75 pulls mass away from floor and ceiling. Misfit priors (e.g.,
+#|   Cauchy under either link) concentrate more mass near 0 and 1. Dashed
+#|   curves show exact analytical densities."
 #| fig-height: 8
 #| fig-width: 10
 
@@ -350,20 +234,20 @@ fig1_draws <- draws_long |>
 plot_p_intercept_ridges(fig1_draws, sd_b1_focus = 0.25)
 ```
 
-As shown in @fig-1-p-intercept, at `sd_b0 = 1.0` with the matched prior
-(Logistic for logit, Normal for probit), the distribution of $p$ is uniform,
-consistent with the exact analytical result. At `sd_b0 = 0.75`, the prior
-pulls mass away from 0 and 1, which is appropriate when floor and ceiling
-effects are a concern. Misfit priors, such as Cauchy for either link,
-produce heavier tails and concentrate more mass near 0 and 1.
-
-### Figure 2: Floor/ceiling diagnostic
+@fig-1-p-intercept confirms the analytical result: at $\text{sd}_{b_0} = 1.0$
+with the matched prior, the distribution of $p$ is uniform. At
+$\text{sd}_{b_0} = 0.75$, the prior pulls mass away from 0 and 1, which is
+appropriate when floor and ceiling effects are a concern. Misfit priors,
+such as Cauchy for either link, produce heavier tails and concentrate more
+mass near the boundaries.
 
 ```{r}
 #| label: fig-2-floor-ceiling
-#| fig-cap: "Proportion of prior predictive mass falling in the floor/ceiling
-#|   region (p < 0.05 or p > 0.95), as a function of intercept prior SD and
-#|   family, for each link function."
+#| fig-cap: "Proportion of prior predictive mass in the floor/ceiling region
+#|   (p < 0.05 or p > 0.95) as a function of intercept prior SD and family.
+#|   The matched prior at sd_b0 = 1.0 places exactly 10% in this region
+#|   (2 x 0.05 = 0.10), confirming the uniform result. At sd_b0 = 0.75,
+#|   floor/ceiling mass drops below 10% for both matched priors."
 #| fig-height: 6
 #| fig-width: 10
 
@@ -372,33 +256,30 @@ plot_floor_ceiling_heatmap(summaries)
 
 We recommend choosing the intercept prior SD so that
 $P(p < 0.05 \text{ or } p > 0.95) \leq 0.10$. Under this criterion,
-`Logistic(0, 0.75)` is the recommended default for the logit link and
-`Normal(0, 0.75)` for the probit link (see @fig-2-floor-ceiling).
+$\text{Logistic}(0, 0.75)$ is the recommended default for the logit link and
+$\text{Normal}(0, 0.75)$ for the probit link (@fig-2-floor-ceiling). The
+exact 10% value at $\text{sd}_{b_0} = 1.0$ for the matched priors serves as
+an internal validation of the simulation against the analytical result.
 
-Note that the exact value of 0.10 at `sd_b0 = 1.0` for the matched priors
-(Logistic under logit, Normal under probit) confirms the theoretical
-prediction: when the matched prior induces a uniform distribution on
-$(0, 1)$, exactly 10% of mass falls below 0.05 or above 0.95
-($2 \times 0.05 = 0.10$). This serves as an internal validation of the
-simulation.
+With the intercept prior established, we turn to the effect prior.
 
-## Results: Effect Prior
+## How Wide Should the Effect Prior Be?
 
-### Figure 3: Effect size distribution by prior scale
-
-@fig-3-delta-p shows how the choice of $\text{sd}_{b_1}$ translates into implied
-effect sizes on the probability scale ($\delta p$, signed), holding the intercept
-prior fixed at the link-matched recommended prior ($\text{Logistic}(0, 0.75)$
-for the logit link; $\text{Normal}(0, 0.75)$ for the probit link).
+The prior on $b_1$ determines how much prior mass falls on small versus
+large effects on the probability scale. @fig-3-delta-p shows how the choice
+of $\text{sd}_{b_1}$ translates into implied effect sizes ($\delta p$),
+holding the intercept prior fixed at the matched recommendation
+($\text{Logistic}(0, 0.75)$ for logit; $\text{Normal}(0, 0.75)$ for probit).
 
 ```{r}
 #| label: fig-3-delta-p
-#| fig-cap: "Density ridges of the prior predictive distribution of delta_p
-#|   (signed effect size on probability scale) for each effect prior SD (y-axis
-#|   rows), colour-coded by prior family (Normal, Logistic, Cauchy), and
-#|   faceted by link function. Intercept prior fixed at the matched recommended
-#|   prior per link: Logistic(0, 0.75) for logit, Normal(0, 0.75) for probit.
-#|   Solid vertical line at 0; dotted lines at +/-0.10, +/-0.20, +/-0.30."
+#| fig-cap: "Prior predictive distribution of delta_p (signed effect size on
+#|   the probability scale) for each effect prior SD, colour-coded by prior
+#|   family. At sd_b1 = 0.25, Normal and Logistic priors concentrate mass on
+#|   effects up to about 20 percentage points --- a range consistent with
+#|   typical cognitive experiments. The Cauchy stands apart even at this
+#|   moderate scale, assigning substantial probability to effects exceeding
+#|   50 percentage points. Dotted lines mark +/-0.10, +/-0.20, +/-0.30."
 #| fig-height: 10
 #| fig-width: 10
 
@@ -414,63 +295,57 @@ fig2_draws <- draws_long |>
 plot_delta_p_ridges(fig2_draws, sd_b0_focus = 0.75)
 ```
 
-Several patterns are immediately apparent from @fig-3-delta-p. First, the
-**Cauchy prior** stands apart from Normal and Logistic at every scale: even
-at $\text{sd}_{b_1} = 0.25$, its heavy tails assign substantial prior
-probability to $|\delta p| > 0.50$ — effect sizes that would represent a
-dramatic shift in accuracy (e.g., from 50% to above 90% correct). At
-$\text{sd}_{b_1} \geq 0.50$, a Cauchy prior treats effects larger than 30
-percentage points as essentially as plausible as small effects. For most
-cognitive psychology experiments, such extreme effects are implausible a
-priori, making the Cauchy a poor default choice.
+@fig-3-delta-p shows several patterns. The **Cauchy prior** stands apart at
+every scale: even at $\text{sd}_{b_1} = 0.25$, its heavy tails assign
+substantial probability to $|\delta p| > 0.50$, representing a shift in
+accuracy from 50% to above 90%. At $\text{sd}_{b_1} \geq 0.50$, effects
+larger than 30 percentage points are treated as roughly as plausible as small
+effects, making the Cauchy a poor default for cognitive psychology.
 
-Second, even for the better-behaved **Normal and Logistic priors**, a scale
-of $\text{sd}_{b_1} = 1.0$ or above spreads mass broadly across the entire
-$(-1, 1)$ range, implying near-equal plausibility of tiny and enormous
-effects. At $\text{sd}_{b_1} = 0.75$, the 90th percentile of $|\delta p|$
-already exceeds 0.30 — a very large effect in most experimental paradigms.
-A scale below 1.0 is therefore needed to obtain a meaningful regularising
-prior on the probability scale.
+Even for the **Normal and Logistic priors**, a scale of
+$\text{sd}_{b_1} = 1.0$ or above spreads mass broadly across the entire
+$(-1, 1)$ range. At $\text{sd}_{b_1} = 0.75$, the 90th percentile of
+$|\delta p|$ already exceeds 0.30. A scale below 1.0 is needed for
+meaningful regularisation.
 
-Within the substantively appropriate range of $\text{sd}_{b_1} \in [0.10,
-0.50]$, Normal and Logistic priors behave similarly. At
-$\text{sd}_{b_1} = 0.10$, almost all prior mass falls within $|\delta p| <
-0.10$, suitable only when very small effects are expected. At
-$\text{sd}_{b_1} = 0.25$, the distribution is centred around zero with the
-90th percentile of $|\delta p|$ near 0.20 - corresponding to a moderate
-effect of 20 percentage points - which aligns well with the range of
-effects typically observed in cognitive psychology. Values up to
-$\text{sd}_{b_1} = 0.50$ remain defensible when larger effects are
-plausible, with the 90th percentile rising to roughly 0.35.
+Within the range $\text{sd}_{b_1} \in [0.10, 0.50]$, Normal and Logistic
+priors behave similarly. At $\text{sd}_{b_1} = 0.10$, almost all mass falls
+within $|\delta p| < 0.10$, suitable only when very small effects are
+expected. At $\text{sd}_{b_1} = 0.25$, the 90th percentile of $|\delta p|$
+is near 0.20 --- a moderate effect of 20 percentage points that aligns well
+with typical cognitive experiments. Values up to $\text{sd}_{b_1} = 0.50$
+remain defensible when larger effects are plausible, with the 90th percentile
+rising to roughly 0.35.
 
-## Results: Random Effects Prior
+For fixed-effects models, an effect prior with $\text{sd}_{b_1} = 0.25$
+under sum-to-zero coding provides a sensible default. Most experiments,
+however, also require random effects to account for between-subject
+heterogeneity, which raises the question of how the hyperprior should be
+specified.
 
-In practice, binomial GLMs for repeated-measures cognitive psychology data
-include subject-level random intercepts (and often random slopes) to account
-for between-subject heterogeneity. Specifying a complete Bayesian model
-therefore also requires priors on
-the random-effect SDs $\sigma_u$ (intercept) and $\sigma_v$ (slope). Three
-candidate hyperpriors are compared:
+## How Should Priors Be Specified for Random Effects?
 
-- **$\text{half-student\_t}(3, 0, 2.5)$**: the brms default; a half-Student-$t$ with 3
-  degrees of freedom and scale 2.5, placing a heavy right tail on $\sigma_u$.
-- **$\text{Gamma}(2, 4)$**: mean $= 0.5$, with approximately 71% of mass below
-  $\sigma_u = 0.5$ logit units; a moderately regularising prior.
-- **$\text{Exponential}(4)$**: mean $= 0.25$, with approximately 86% of mass below
-  $\sigma_u = 0.5$; the strongest concentration near zero of the three.
+The `brms` default hyperprior on random-effect SDs ---
+$\text{half-student\_t}(3, 0, 2.5)$ --- places a heavy right tail on
+between-subject variability. Does this matter on the probability scale? To
+find out, we compare three candidate hyperpriors for the random-effect SDs
+$\sigma_u$ (intercept) and $\sigma_v$ (slope):
 
-The key question is: **what does each hyperprior imply about success
-probabilities and effect heterogeneity on the probability scale?**
+- **$\text{half-student\_t}(3, 0, 2.5)$**: the `brms` default, with a heavy
+  right tail on $\sigma_u$.
+- **$\text{Gamma}(2, 4)$**: mean $= 0.5$, with approximately 71% of mass
+  below $\sigma_u = 0.5$ logit units.
+- **$\text{Exponential}(4)$**: mean $= 0.25$, with approximately 86% of mass
+  below $\sigma_u = 0.5$; the strongest concentration near zero.
 
-To answer this, we run a full hierarchical prior predictive:
-
-$$\sigma_u \sim \text{hyperprior}, \quad u_i \sim \mathcal{N}(0, \sigma_u)$$
-
-$$p_{ij} = g^{-1}(b_0 + u_i \pm (b_1 + v_i))$$
-
-with $b_0 \sim \text{Logistic}(0, 0.75)$ and $b_1 \sim \mathcal{N}(0, 0.25)$
-fixed at the recommended values from the fixed-effects analysis. For the
-intercept + slope structure, $\sigma_v$ is drawn from the same hyperprior as
+We run a full hierarchical prior predictive with
+$\sigma_u \sim \text{hyperprior}$, subject-level random intercepts
+$u_i \sim \mathcal{N}(0, \sigma_u)$, and
+$p_{ij} = g^{-1}(b_0 + u_i \pm (b_1 + v_i))$, where $v_i$ is the
+subject-level random slope. The fixed-effects priors are held at the
+recommended values ($b_0 \sim \text{Logistic}(0, 0.75)$,
+$b_1 \sim \mathcal{N}(0, 0.25)$). For the intercept + slope structure,
+the random-slope SD $\sigma_v$ is drawn from the same hyperprior as
 $\sigma_u$.
 
 ```{r}
@@ -491,13 +366,11 @@ re_results_available <- !is.null(re_summaries) && !is.null(re_draws)
 
 ```{r}
 #| label: fig-re-1-p-intercept
-#| fig-cap: "Density ridges of the prior predictive distribution of
-#|   subject-level success probabilities p_i = g^{-1}(b0 + u_i). Each ridge
-#|   corresponds to one of three hyperpriors for the between-subject SD
-#|   (student_t, gamma, exponential; y-axis), faceted by RE structure
-#|   (intercept-only vs. intercept + slope). Fixed-effects priors held at
-#|   Logistic(0, 0.75) for the intercept and Normal(0, 0.25) for the effect.
-#|   Dashed vertical lines mark the floor/ceiling boundary (p = 0.05, 0.95)."
+#| fig-cap: "The brms default student_t(3, 0, 2.5) spreads subject-level
+#|   probabilities toward floor and ceiling due to its heavy right tail on
+#|   between-subject SDs. The exponential(4) and gamma(2, 4) hyperpriors keep
+#|   subjects' probabilities well away from the boundary. Dashed vertical
+#|   lines mark p = 0.05 and p = 0.95."
 #| fig-height: 5
 #| fig-width: 9
 #| eval: !expr re_results_available
@@ -522,18 +395,19 @@ re_draws |>
   theme(strip.text = element_text(face = "bold"))
 ```
 
-The brms default `student_t(3, 0, 2.5)` places a heavy right tail on
-$\sigma_u$: occasional large SDs spread subject-level probabilities toward 0
-and 1, as visible in @fig-re-1-p-intercept from the heavier tails near the
-floor/ceiling boundary. The `gamma(2, 4)` and `exponential(4)` hyperpriors
-concentrate $\sigma_u$ near zero, keeping subjects' probabilities away from
-the boundary.
+@fig-re-1-p-intercept shows the consequences: the `brms` default
+`student_t(3, 0, 2.5)` spreads subject-level probabilities toward 0 and 1,
+with heavier tails near the floor/ceiling boundary. The `gamma(2, 4)` and
+`exponential(4)` hyperpriors concentrate $\sigma_u$ near zero, keeping
+subjects' probabilities away from the boundary.
 
 ```{r}
 #| label: fig-re-2-delta-p
-#| fig-cap: "Prior predictive distribution of the signed effect size delta_p
-#|   on the probability scale under each RE hyperprior, for both RE structures.
-#|   Solid line at 0; dotted lines at +/-0.10, +/-0.20, +/-0.30."
+#| fig-cap: "Under the student_t default, a non-trivial fraction of simulated
+#|   subjects show effects in the opposite direction to the population-level
+#|   b1. The more concentrated hyperpriors (gamma, exponential) limit this
+#|   effect heterogeneity to a substantively plausible range. Dotted lines
+#|   mark +/-0.10, +/-0.20, +/-0.30."
 #| fig-height: 5
 #| fig-width: 9
 #| eval: !expr re_results_available
@@ -559,27 +433,20 @@ re_draws |>
   theme(strip.text = element_text(face = "bold"))
 ```
 
-The `student_t` hyperprior produces substantially more within-study effect
-heterogeneity and sign reversals compared with the narrower alternatives
-(see @fig-re-2-delta-p).
-Under `student_t`, a non-trivial fraction of
-simulated subjects show effects in the opposite direction to the
-population-level $b_1$, even with the intercept-only RE structure — driven
-purely by the wide distribution of $\sigma_u$ pulling individual subjects to
-regions of the probability scale where the logistic nonlinearity reverses the
-apparent direction.
+The `student_t` hyperprior also produces more within-study effect
+heterogeneity (@fig-re-2-delta-p): a non-trivial fraction of simulated
+subjects show effects in the opposite direction to the population-level
+$b_1$. The wide distribution of $\sigma_u$ pulls individual subjects into
+regions where the logistic nonlinearity reverses the apparent effect
+direction.
+
+We therefore recommend `exponential(4)` for random-effect SD hyperpriors.
+It concentrates between-subject variability in a plausible range and avoids
+excessive floor/ceiling effects.
 
 ## Recommendations
 
-The approach demonstrated here — analytical derivation of matched priors
-via the probability integral transform, followed by systematic prior
-predictive simulation — constitutes a general workflow for establishing
-principled priors in any model where link functions mediate between
-parameter and observation scales. It operationalises the prior predictive
-checking step of the Bayesian workflow [@gelman2020workflow; @schad2021]
-into a structured, reproducible design analysis [@schonbrodt2018].
-
-For binomial GLMs with sum-to-zero contrast coding (±1), we recommend
+For binomial GLMs with sum-to-zero contrast coding ($\pm 1$), we recommend
 the following default priors:
 
 ### Intercept prior
@@ -589,6 +456,10 @@ the following default priors:
 | logit | $\text{Logistic}(0, 0.75)$ | Matched family; sd = 0.75 gives < 10% floor/ceiling mass |
 | probit | $\text{Normal}(0, 0.75)$ | Matched family; same criterion |
 
+At $\text{sd} = 0.75$, less than 10% of prior mass falls in the
+floor/ceiling region, while remaining agnostic about baseline accuracy
+within the plausible range.
+
 ### Effect prior
 
 | Prior family | Recommended SD | 90th percentile of $|\delta p|$ |
@@ -597,10 +468,13 @@ the following default priors:
 | Normal | 0.25 | ~0.18 |
 | Cauchy | 0.25 | ~0.25 (heavier tails) |
 
+At $\text{sd}_{b_1} = 0.25$, effects larger than 20 percentage points
+receive decreasing prior probability, while effects above 30 percentage
+points become increasingly implausible.
+
 Our default recommendation is $\text{Logistic}(0, 0.25)$ for logit models
-and $\text{Normal}(0, 0.25)$ for probit models. At this scale, effects
-larger than 20 percentage points receive decreasing prior probability,
-consistent with typical effect magnitudes in cognitive psychology.
+and $\text{Normal}(0, 0.25)$ for probit models, consistent with typical
+effect magnitudes in cognitive psychology.
 
 For sensitivity analyses, $\text{sd}_{b_1}$ values between 0.10 and 0.50
 span a reasonable range of prior beliefs. Values above 0.50 assign
@@ -609,7 +483,7 @@ justification.
 
 ### Random effects prior
 
-For default prior predictive behaviour consistent with the fixed-effects
+For prior predictive behaviour consistent with the fixed-effects
 recommendations:
 
 - **Use `exponential(4)` or `gamma(2, 4)`** for both $\sigma_u$ and
@@ -621,7 +495,7 @@ between-subject variability is expected. The heavy right tail of the
 half-$t$ assigns non-negligible probability to $\sigma > 2$ on the logit
 scale, which is implausible for most cognitive experiments.
 - Between `exponential(4)` and `gamma(2, 4)`, prefer `exponential(4)` for
-its stronger concentration near zero — it matches the intercept-only
+its stronger concentration near zero --- it matches the intercept-only
 floor/ceiling criterion more reliably.
 
 ### Ready-to-use brms prior specifications
@@ -678,17 +552,11 @@ probit_priors_re <- c(
 )
 ```
 
-### Adjusting for contrast coding and predictor scaling
+### Adapting to other contrast codes and predictor scales
 
-The recommended $\text{sd}_{b_1} = 0.25$ assumes that the predictor variable
-has a population-level standard deviation of 1, as is the case for
-sum-to-zero $\pm 1$ coding in balanced two-group designs ($\text{SD}(x) = 1$).
-Whenever the predictor's SD differs from 1 — whether due to contrast coding
-conventions, binary (0/1) treatment coding, or continuous predictors — the
-prior on $b_1$ must be rescaled to preserve the same implied distribution of
-effects on the probability scale.
-
-The general rule is:
+The recommended $\text{sd}_{b_1} = 0.25$ assumes sum-to-zero $\pm 1$ coding
+($\text{SD}(x) = 1$). Whenever the predictor's SD differs from 1, the prior
+on $b_1$ must be rescaled:
 
 $$\text{sd}_{b_1}(\text{predictor SD} = s) = \frac{\text{sd}_{b_1}(\text{SD} = 1)}{s}$$
 
@@ -701,10 +569,230 @@ require a *narrower* prior. Examples:
 - Standardised continuous predictor ($s = 1$): use $\text{sd}_{b_1} = 0.25$ directly
 
 For continuous predictors that are not standardised, compute the
-population-level SD of the predictor and apply the formula above. This
-ensures that the prior on the predicted effect — the change in
-$p$ per one-SD change in the predictor — remains at the same scale
-regardless of the predictor's units.
+population-level SD and apply the formula above.
+
+#### Generalising to multi-level and factorial designs
+
+When a factor has more than two levels, the choice of contrast coding affects
+not only the interpretation of coefficients but also the *prior* on each
+factor-level mean. With standard coding schemes (treatment, effects), placing
+the same prior on all coefficients produces unequal priors across factor
+levels --- the reference level is treated differently from the remaining
+levels. This asymmetry propagates to the Bayes factor, biasing evidence for
+some comparisons relative to others [@rouder2012; @schad2020].
+
+Orthonormal contrasts avoid this problem. Each contrast column sums to
+zero and has unit length, so placing the same prior on each coefficient
+produces equal marginal priors on all factor levels. The
+`contr.equalprior()` function from the `bayestestR` package
+[@makowski2019] provides such contrasts, following the construction in
+@rouder2012 [p. 363]. Because the prior is symmetric across all directions
+in the effect space, the Bayes factor does not depend on which specific
+orthonormal basis is chosen (e.g., Helmert vs. polynomial) --- only the
+orthonormality property matters [@rouder2017].
+
+In a balanced design with $J$ levels, each orthonormal contrast column has
+predictor $\text{SD} = 1 / \sqrt{J}$. Applying the scaling formula from
+above gives:
+
+$$\text{sd}_{b_1}(\text{orthonormal, } J \text{ levels}) = 0.25 \times \sqrt{J}$$
+
+This extends to factorial designs. In a balanced $J \times K$ factorial with
+orthonormal contrasts on both factors, the interaction columns are
+element-wise products of the main-effect columns, yielding predictor
+$\text{SD} = 1 / \sqrt{JK}$ [@rouder2017]. @tbl-orthonormal-scaling gives
+the rescaled prior widths for common cases.
+
+| Design term | Predictor SD | Rescaled $\text{sd}_{b_1}$ |
+|:---|:---:|:---:|
+| 2-level factor | $1/\sqrt{2} \approx 0.71$ | 0.35 |
+| 3-level factor | $1/\sqrt{3} \approx 0.58$ | 0.43 |
+| 4-level factor | $1/\sqrt{4} = 0.50$ | 0.50 |
+| 5-level factor | $1/\sqrt{5} \approx 0.45$ | 0.56 |
+| $2 \times 3$ interaction | $1/\sqrt{6} \approx 0.41$ | 0.61 |
+| $3 \times 3$ interaction | $1/\sqrt{9} \approx 0.33$ | 0.75 |
+
+: Rescaled effect prior widths under orthonormal contrasts for multi-level
+  factors and factorial interactions. All values assume the baseline
+  recommendation of $\text{sd}_{b_1} = 0.25$ under $\pm 1$ coding.
+  {#tbl-orthonormal-scaling}
+
+The full scaling produces wider priors for interactions than for main
+effects. In many experimental contexts, interactions are expected to be
+smaller than main effects, so using the *unscaled* main-effect prior for
+interaction terms is a reasonable alternative. The table above gives the
+default when no such expectation exists.
+
+@fig-orthonormal-demo shows the resulting prior predictive distributions
+for $J = 2$, $3$, and $4$.
+
+```{r}
+#| label: fig-orthonormal-demo
+#| fig-cap: "Prior predictive distribution of pairwise effect sizes under
+#|   orthonormal contrasts with the rescaled prior
+#|   ($\\text{sd}_{b_1} = 0.25 \\times \\sqrt{J}$). Left: distribution of
+#|   a single representative pairwise $\\delta p$, which is nearly identical
+#|   across $J$ --- confirming that the scaling rule preserves per-comparison
+#|   calibration. Right: distribution of the maximum pairwise
+#|   $|\\delta p|$, which shifts right with $J$ as expected
+#|   (more pairwise comparisons produce a larger maximum)."
+#| fig-height: 4.5
+#| fig-width: 10
+
+source(here("R", "link_functions.R"))
+source(here("R", "plotting.R"))
+
+set.seed(2024)
+n_draws <- 50000
+
+demo_list <- lapply(c(2, 3, 4), function(J) {
+  oc <- orthonormal_contrasts(J)
+  sd_b1_scaled <- 0.25 * oc$scaling_factor
+
+  b0 <- rlogis(n_draws, location = 0, scale = 0.75)
+  # J-1 contrast coefficients from the rescaled prior
+  B <- matrix(
+    rnorm(n_draws * (J - 1), mean = 0, sd = sd_b1_scaled),
+    nrow = n_draws, ncol = J - 1
+  )
+
+  # Cell means on the linear predictor: eta = b0 + Q %*% beta
+  eta_mat <- outer(b0, rep(0, J)) + B %*% t(oc$Q)
+  p_mat   <- ilogit(eta_mat)
+
+  # Single representative pairwise delta_p (levels 1 vs 2)
+  delta_p_pair <- p_mat[, 1] - p_mat[, 2]
+
+  # Maximum absolute pairwise delta_p
+  max_abs_dp <- apply(p_mat, 1, function(row) {
+    diffs <- outer(row, row, "-")
+    max(abs(diffs[upper.tri(diffs)]))
+  })
+
+  data.frame(
+    J            = paste0("J = ", J),
+    delta_p_pair = delta_p_pair,
+    max_abs_dp   = max_abs_dp
+  )
+})
+
+demo_draws <- do.call(rbind, demo_list)
+
+p_single <- ggplot(demo_draws, aes(x = delta_p_pair,
+                                    fill = J, colour = J)) +
+  geom_density(alpha = 0.3, linewidth = 0.6) +
+  geom_vline(xintercept = c(-0.20, -0.10, 0.10, 0.20),
+             linetype = "dotted", linewidth = 0.4,
+             colour = "grey40") +
+  scale_x_continuous(expression(delta * p ~ "(single pair)"),
+                     limits = c(-0.8, 0.8)) +
+  scale_fill_viridis_d("Factor levels", option = "D", end = 0.85) +
+  scale_colour_viridis_d("Factor levels", option = "D", end = 0.85) +
+  ggtitle("Single pairwise comparison") +
+  prior_theme()
+
+p_max <- ggplot(demo_draws, aes(x = max_abs_dp,
+                                 fill = J, colour = J)) +
+  geom_density(alpha = 0.3, linewidth = 0.6) +
+  geom_vline(xintercept = c(0.10, 0.20, 0.30),
+             linetype = "dotted", linewidth = 0.4,
+             colour = "grey40") +
+  scale_x_continuous(expression(max ~ "|" * delta * p * "|"),
+                     limits = c(0, 1)) +
+  scale_fill_viridis_d("Factor levels", option = "D", end = 0.85) +
+  scale_colour_viridis_d("Factor levels", option = "D", end = 0.85) +
+  ggtitle("Maximum pairwise difference") +
+  prior_theme()
+
+patchwork::wrap_plots(p_single, p_max, guides = "collect") &
+  theme(legend.position = "bottom")
+```
+
+The left panel of @fig-orthonormal-demo shows that the prior predictive
+distribution of any single pairwise comparison is nearly identical across
+$J = 2$, $3$, and $4$: the $\sqrt{J}$ scaling rule preserves the
+calibration established for the two-condition case. The right panel shows
+that the maximum pairwise $|\delta p|$ shifts right with increasing $J$.
+This shift reflects the number of comparisons, not prior misspecification
+--- with more pairs, the largest difference naturally grows.
+
+In `brms`, the recommended workflow is to set orthonormal contrasts before
+fitting the model and adjust the prior width accordingly:
+
+```{r}
+#| label: recommended-priors-orthonormal
+#| echo: true
+#| eval: false
+
+# --- Single 3-level factor ---
+contrasts(dat$condition) <- bayestestR::contr.equalprior(3)
+# Predictor SD = 1/sqrt(3); rescaled prior: sd_b1 = 0.25 * sqrt(3) = 0.433
+
+priors_3level <- c(
+  brms::prior(logistic(0, 0.75),  class = Intercept),
+  brms::prior(normal(0, 0.433),   class = b)
+)
+
+# --- 2 x 3 factorial design ---
+contrasts(dat$A) <- bayestestR::contr.equalprior(2)
+contrasts(dat$B) <- bayestestR::contr.equalprior(3)
+# Main effect A: sd = 0.25 * sqrt(2) = 0.354
+# Main effect B: sd = 0.25 * sqrt(3) = 0.433
+# Interaction:   sd = 0.25 * sqrt(6) = 0.612
+#   (or use the main-effect prior if interactions are expected to be small)
+
+priors_factorial <- c(
+  brms::prior(logistic(0, 0.75),  class = Intercept),
+  brms::prior(normal(0, 0.354),   class = b, coef = A1),
+  brms::prior(normal(0, 0.433),   class = b, coef = B1),
+  brms::prior(normal(0, 0.433),   class = b, coef = B2),
+  brms::prior(normal(0, 0.612),   class = b, coef = "A1:B1"),
+  brms::prior(normal(0, 0.612),   class = b, coef = "A1:B2")
+)
+```
+
+For unbalanced designs, the predictor SD depends on cell sizes and should
+be computed from the contrast matrix directly. For factors with many levels
+($J > 5$), the `BayesFactor` package [@rouder2012; @rouder2017] implements
+the full multivariate JZS prior, which accounts for the dimensionality of
+the effect space without requiring per-coefficient prior widths.
+
+#### No-intercept parameterization (0 + coding in brms)
+
+In `brms`, specifying `0 + condition` removes the intercept and estimates
+separate coefficients for each condition level, so that
+$p_0 = g^{-1}(b_0)$, $p_1 = g^{-1}(b_1)$, and
+$\delta p = g^{-1}(b_1) - g^{-1}(b_0)$. Under this parameterization, the
+matched prior principle applies to each coefficient independently: placing
+$\text{Logistic}(0, 1)$ on both coefficients under the logit link induces
+independent $\text{Uniform}(0, 1)$ marginals, and the implied prior on
+$\delta p$ is a symmetric triangular distribution on $(-1, 1)$. Because the
+coefficient interpretation differs from the intercept-plus-slope
+parameterization, our recommended prior widths do not transfer directly ---
+each condition mean should receive a matched prior scaled to reflect beliefs
+about plausible success probabilities (e.g., $\text{sd} = 0.75$), and the
+implied $\delta p$ should be checked via prior predictive simulation.
+
+### Beyond binomial models
+
+The approach here --- analytical derivation of matched priors via the
+probability integral transform, followed by prior predictive simulation ---
+applies to any model where link functions mediate between parameter and
+observation scales [@gelman2020workflow; @schad2021; @schonbrodt2018]. The
+matched prior principle generalises to any model that maps parameters through
+a CDF. In a cumulative ordinal model with a logit link, a Logistic prior on
+the threshold parameters produces uniform implied probabilities across
+response categories. In a log-link Poisson model, an Exponential(1) prior on
+the rate produces a Uniform on the CDF scale. More broadly, any
+distributional regression model [@klein2015; @burkner2021] where response
+parameters are linked to predictors faces the same prior--link interaction.
+The same workflow --- identify the matched family, characterise deviations
+via prior predictive simulation, calibrate Bayes Factor performance --- can
+be applied wherever such interactions arise.
+
+The simulation code, ready-to-use `brms` prior specifications, and all
+output data are available in the project repository. A companion report
+examines how these priors perform in Bayes Factor hypothesis testing.
 
 ## References
 

@@ -138,3 +138,38 @@ validate_matched_prior <- function(n_draws = 100000, seed = NULL) {
     probit_ks = ks_probit
   )
 }
+
+
+# ==============================================================================
+# Orthonormal contrast helpers
+# ==============================================================================
+
+#' Construct orthonormal contrasts for a J-level factor
+#'
+#' Returns a J x (J-1) orthonormal contrast matrix Q and the predictor SD
+#' of each column (which equals 1/sqrt(J) for balanced designs).
+#'
+#' The construction follows Rouder et al. (2012, p. 363): Helmert contrasts
+#' are normalised to unit length. The specific basis does not matter for BF
+#' computation when a spherically symmetric prior is used.
+#'
+#' @param J Integer >= 2. Number of factor levels.
+#' @return List with components:
+#'   \item{Q}{J x (J-1) orthonormal contrast matrix}
+#'   \item{predictor_sd}{Numeric scalar, SD of each contrast column = 1/sqrt(J)}
+#'   \item{scaling_factor}{Numeric scalar, sd_b1 multiplier = sqrt(J)}
+orthonormal_contrasts <- function(J) {
+  stopifnot(J >= 2L)
+  # Helmert contrasts, then normalise each column to unit length
+  H <- contr.helmert(J)
+  Q <- apply(H, 2, function(col) col / sqrt(sum(col^2)))
+
+  # Predictor SD: sqrt(mean(q^2)) = sqrt(1/J) since sum(q^2) = 1 and mean(q) = 0
+  pred_sd <- sqrt(1 / J)
+
+  list(
+    Q              = Q,
+    predictor_sd   = pred_sd,
+    scaling_factor = sqrt(J)
+  )
+}
