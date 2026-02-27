@@ -21,7 +21,7 @@ author:
     corresponding: true
     affiliations:
       - name: University of Lucerne
-        department: Faculty of Health Sciences and Medicine
+        department: Faculty of Behavioral Sciences and Psychology
 author-note:
   disclosures:
     study-registration: "This study was not preregistered."

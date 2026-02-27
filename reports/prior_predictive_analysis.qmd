@@ -10,7 +10,7 @@ author:
       - name: University of Zurich
         department: Department of Psychology
       - name: University of Lucerne
-        department: Faculty of Health Sciences and Medicine
+        department: Faculty of Behavioral Sciences and Psychology
   - name: Joscha Dutli
     orcid: 0009-0009-5007-1281
     affiliations:
