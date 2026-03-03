@@ -11,7 +11,7 @@
 
 #' Base ggplot2 theme for all figures
 prior_theme <- function() {
-  ggplot2::theme_minimal(base_size = 12) +
+  ggplot2::theme_minimal(base_size = 16) +
     ggplot2::theme(
       panel.grid.minor  = ggplot2::element_blank(),
       strip.text        = ggplot2::element_text(face = "bold"),
@@ -52,11 +52,12 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
     if (lnk == "logit")  d_logistic_on_p(p, scale = sd)
     else                  d_normal_on_p(p, sigma = sd)
   }, ref_data$p, ref_data$sd_b0, ref_data$link)
-  ref_data$sd_b0_label <- paste0("sd_b0 = ", ref_data$sd_b0)
+  # Plotmath-parseable facet labels
+  ref_data$sd_b0_label <- paste0("sd[b[0]] == ", ref_data$sd_b0)
 
   draws_long <- draws_long |>
     dplyr::mutate(
-      sd_b0_label = paste0("sd_b0 = ", sd_b0),
+      sd_b0_label = paste0("sd[b[0]] == ", sd_b0),
       dist_b0     = factor(dist_b0, levels = c("cauchy", "normal", "logistic"),
                            labels = c("Cauchy", "Normal", "Logistic"))
     )
@@ -75,19 +76,19 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
       linetype = "dashed", linewidth = 0.8, colour = "black",
       inherit.aes = FALSE
     ) +
-    ggplot2::scale_x_continuous("Success probability p", limits = c(0, 1),
-                                 expand = c(0, 0)) +
-    ggplot2::scale_y_continuous("Density", limits = c(0, 5)) +
+    ggplot2::scale_x_continuous(
+      expression("Success probability" ~ italic(p)),
+      limits = c(0, 1), expand = c(0, 0)
+    ) +
+    ggplot2::scale_y_continuous(NULL, expand = ggplot2::expansion(mult = c(0, 0.05))) +
     ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_colour_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::facet_grid(
       sd_b0_label ~ link,
-      labeller = ggplot2::labeller(link = link_labels)
-    ) +
-    ggplot2::labs(
-      title    = "Prior predictive distribution of success probability",
-      subtitle = paste0("sd_b1 = ", sd_b1_focus,
-                        "; dashed = exact analytical density (matched prior)")
+      labeller = ggplot2::labeller(
+        link = link_labels,
+        sd_b0_label = ggplot2::label_parsed
+      )
     ) +
     prior_theme()
 }
@@ -127,17 +128,15 @@ plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
       ggplot2::aes(x = x, y = Inf, label = label),
       vjust = 1.5, hjust = -0.1, size = 3, color = "grey40", inherit.aes = FALSE
     ) +
-    ggplot2::scale_x_continuous("Effect size on probability scale (delta_p)",
-                                 limits = c(-0.75, 0.75),
-                                 breaks = seq(-0.75, 0.75, 0.25)) +
-    ggplot2::scale_y_discrete("SD of effect prior (sd_b1)") +
+    ggplot2::scale_x_continuous(
+      expression(delta * italic(p)),
+      limits = c(-0.75, 0.75),
+      breaks = seq(-0.75, 0.75, 0.25)
+    ) +
+    ggplot2::scale_y_discrete(expression(sd[b[1]])) +
     ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::facet_wrap(~link, labeller = ggplot2::labeller(link = link_labels)) +
-    ggplot2::labs(
-      title    = "Prior predictive distribution of effect size on probability scale",
-      subtitle = paste0("sd_b0 = ", sd_b0_focus, "; dotted lines at delta_p = \u00b10.10, \u00b10.20, \u00b10.30")
-    ) +
     prior_theme()
 }
 
@@ -178,17 +177,13 @@ plot_floor_ceiling_heatmap <- function(summaries, threshold = 0.10) {
     ) +
     ggplot2::scale_color_identity() +
     ggplot2::scale_fill_viridis_c(
-      "P(p < 0.05 or p > 0.95)",
+      expression(P(italic(p) < 0.05 ~ "or" ~ italic(p) > 0.95)),
       option = "C", direction = -1,
       limits = c(0, max(dat$prob_floor_ceiling, 0.20))
     ) +
-    ggplot2::scale_x_discrete("SD of intercept prior (sd_b0)") +
+    ggplot2::scale_x_discrete(expression(sd[b[0]])) +
     ggplot2::scale_y_discrete("Intercept prior family") +
     ggplot2::facet_wrap(~link, labeller = ggplot2::labeller(link = link_labels)) +
-    ggplot2::labs(
-      title    = "Floor/ceiling mass of intercept prior predictive",
-      subtitle = paste0("P(p < 0.05 or p > 0.95); values <= ", threshold, " are preferred")
-    ) +
     prior_theme() +
     ggplot2::theme(legend.position = "right")
 }
@@ -236,19 +231,17 @@ plot_quantile_profile <- function(summaries, sd_b0_focus = 0.75) {
     ggplot2::geom_line(linewidth = 0.8) +
     ggplot2::geom_hline(yintercept = c(0.10, 0.20, 0.30),
                         linetype = "dotted", linewidth = 0.4, color = "grey60") +
-    ggplot2::scale_x_continuous("SD of effect prior (sd_b1)") +
-    ggplot2::scale_y_continuous("|delta_p| quantile", limits = c(0, 1)) +
+    ggplot2::scale_x_continuous(expression(sd[b[1]])) +
+    ggplot2::scale_y_continuous(
+      expression("Quantile of" ~ group("|", delta * italic(p), "|")),
+      limits = c(0, 1)
+    ) +
     ggplot2::scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_linetype_manual("Quantile",
       values = c("50th percentile" = "solid",
                  "90th percentile" = "dashed",
                  "95th percentile" = "dotted")) +
     ggplot2::facet_wrap(~link, labeller = ggplot2::labeller(link = link_labels)) +
-    ggplot2::labs(
-      title    = "Prior scale to implied effect size: quantile profiles",
-      subtitle = paste0("sd_b0 = ", sd_b0_focus,
-                        "; horizontal dotted = |delta_p| at 0.10, 0.20, 0.30")
-    ) +
     prior_theme()
 }
 
@@ -283,16 +276,14 @@ plot_link_equivalence <- function(summaries, sd_b0_focus = 0.75) {
     ggplot2::geom_line(linewidth = 0.8) +
     ggplot2::geom_hline(yintercept = c(0.10, 0.20, 0.30),
                         linetype = "dotted", linewidth = 0.4, color = "grey60") +
-    ggplot2::scale_x_continuous("SD of effect prior (sd_b1)") +
-    ggplot2::scale_y_continuous("90th percentile of |delta_p|", limits = c(0, 1)) +
+    ggplot2::scale_x_continuous(expression(sd[b[1]])) +
+    ggplot2::scale_y_continuous(
+      expression("90th percentile of" ~ group("|", delta * italic(p), "|")),
+      limits = c(0, 1)
+    ) +
     ggplot2::scale_color_viridis_d("Link function",
                                     labels = link_labels, option = "D", end = 0.7) +
     ggplot2::scale_linetype_discrete("Prior family") +
-    ggplot2::labs(
-      title    = "Logit vs. probit: matched priors produce similar effect size distributions",
-      subtitle = paste0("sd_b0 = ", sd_b0_focus,
-                        "; matched prior: Logistic for logit, Normal for probit")
-    ) +
     prior_theme()
 }
 
@@ -345,15 +336,11 @@ plot_misfit_heatmap <- function(summaries) {
     ) +
     ggplot2::scale_color_identity() +
     ggplot2::scale_fill_viridis_c(
-      "P(p < 0.05 or p > 0.95)",
+      expression(P(italic(p) < 0.05 ~ "or" ~ italic(p) > 0.95)),
       option = "C", direction = -1
     ) +
-    ggplot2::scale_x_discrete("SD of intercept prior (sd_b0)") +
+    ggplot2::scale_x_discrete(expression(sd[b[0]])) +
     ggplot2::scale_y_discrete("Link + prior family") +
-    ggplot2::labs(
-      title    = "Effect of prior-link misfit on floor/ceiling mass",
-      subtitle = "Gold border = matched prior (logit+logistic or probit+normal)"
-    ) +
     prior_theme() +
     ggplot2::theme(legend.position = "right")
 }

@@ -12,29 +12,31 @@
 #     b0, b1 ~ fixed-effects priors
 #     p_ij   = g^{-1}(b0 + u_i ± (b1 + v_i))
 #
-#   The three candidate hyperpriors correspond to the levels in
-#   make_brms_sd_prior(): brms default student_t(3, 0, 2.5), gamma(2, 4),
-#   and exponential(4). The same hyperprior family is used for both sd_re
-#   and sd_slope (when re_structure = "intercept_slope").
+#   We compare four hyperprior families at five scale levels (matched by mean)
+#   in a fully crossed design to disentangle the effect of distribution family
+#   from the effect of scale. The same hyperprior family and scale is used for
+#   both sd_re and sd_slope (when re_structure = "intercept_slope").
 #
 #   Fixed-effects priors are fixed to the recommended values from script 01:
-#   logit link, Logistic(0, 0.75) intercept, Normal(0, 0.25) effect.
+#   logit link, Logistic(0, 0.75) intercept, Logistic(0, 0.25) effect.
 #
-# DESIGN (6 conditions x 10 reps):
-#   sd_prior_re  in {"student_t", "gamma", "exponential"}
+# DESIGN (40 conditions x 10 reps):
+#   hp_family    in {"exponential", "gamma", "half_normal", "half_t"}
+#   hp_mean      in {0.15, 0.25, 0.50, 1.00, 2.50}
 #   re_structure in {"intercept_only", "intercept_slope"}
 #
 # FIXED:
 #   link       = "logit"
 #   dist_b0    = "logistic",  sd_b0 = 0.75
-#   dist_b1    = "normal",    sd_b1 = 0.25
+#   dist_b1    = "logistic",  sd_b1 = 0.25
 #   n_studies  = 1000     (study-level prior draws per replication)
 #   n_subjects = 50       (subjects per study — needed for within-study stats)
 #
-# HYPERPRIOR SAMPLING (positive half-distributions, matching brms parameterisation):
-#   student_t   ~ |t(df=3)| × 2.5   [half-Student-t, brms default]
-#   gamma       ~ Gamma(shape=2, rate=4)   [mean=0.5, P(sd<0.5)~.71]
-#   exponential ~ Exponential(rate=4)      [mean=0.25, P(sd<0.5)~.86]
+# HYPERPRIOR PARAMETERISATION (all matched by mean):
+#   exponential:  Exponential(rate = 1/mean)
+#   gamma:        Gamma(shape = 2, rate = 2/mean)
+#   half_normal:  |Normal(0, sigma)| where sigma = mean / sqrt(2/pi)
+#   half_t:       |t(df=3)| * scale where scale = mean / (2*sqrt(3)/pi)
 #
 # OUTPUT:
 #   output/Simulation_PriorPredictive_RE/PriorPred_RE_Cond_*.rds
@@ -49,19 +51,27 @@ source(here("R", "prior_sampling.R"))
 
 
 # ------------------------------------------------------------------------------
-# Helper: draw sd values from a named hyperprior
+# Helper: draw sd values from a named hyperprior family at a target mean
 # ------------------------------------------------------------------------------
 
 #' Draw random-effect SDs from a candidate hyperprior
 #'
-#' @param n           Integer. Number of draws.
-#' @param sd_prior_re Character. One of "student_t", "gamma", "exponential".
+#' All four families are parameterised so that their expected value equals
+#' \code{hp_mean}. This allows a fair comparison across families at matched
+#' scale.
+#'
+#' @param n         Integer. Number of draws.
+#' @param hp_family Character. One of "exponential", "gamma", "half_normal",
+#'                  "half_t".
+#' @param hp_mean   Numeric. Target mean of the hyperprior distribution.
 #' @return Numeric vector of length n, all >= 0.
-sample_sd_hyperprior <- function(n, sd_prior_re) {
-  switch(sd_prior_re,
-    student_t   = abs(rt(n, df = 3)) * 2.5,   # half-t(3, 0, 2.5)
-    gamma       = rgamma(n, shape = 2, rate = 4),
-    exponential = rexp(n, rate = 4)
+sample_sd_hyperprior <- function(n, hp_family, hp_mean) {
+  switch(hp_family,
+    exponential = rexp(n, rate = 1 / hp_mean),
+    gamma       = rgamma(n, shape = 2, rate = 2 / hp_mean),
+    half_normal = abs(rnorm(n, mean = 0, sd = hp_mean / sqrt(2 / pi))),
+    half_t      = abs(rt(n, df = 3)) * (hp_mean / (2 * sqrt(3) / pi)),
+    stop("Unknown hp_family: ", hp_family)
   )
 }
 
@@ -71,10 +81,11 @@ sample_sd_hyperprior <- function(n, sd_prior_re) {
 # ------------------------------------------------------------------------------
 
 Design <- createDesign(
-  sd_prior_re  = c("student_t", "gamma", "exponential"),
+  hp_family    = c("exponential", "gamma", "half_normal", "half_t"),
+  hp_mean      = c(0.15, 0.25, 0.50, 1.00, 2.50),
   re_structure = c("intercept_only", "intercept_slope")
 )
-# Total: 3 x 2 = 6 conditions
+# Total: 4 x 5 x 2 = 40 conditions
 
 
 # ------------------------------------------------------------------------------
@@ -104,11 +115,11 @@ Generate <- function(condition, fixed_objects = NULL) {
                      scale = fixed_objects$sd_b1)
 
   # Study-level hyperprior draws for sd_re
-  sd_re_study <- sample_sd_hyperprior(n_studies, sd_prior_re)
+  sd_re_study <- sample_sd_hyperprior(n_studies, hp_family, hp_mean)
 
   # For intercept+slope: also draw sd_slope from the same hyperprior
   if (re_structure == "intercept_slope") {
-    sd_slope_study <- sample_sd_hyperprior(n_studies, sd_prior_re)
+    sd_slope_study <- sample_sd_hyperprior(n_studies, hp_family, hp_mean)
   } else {
     sd_slope_study <- rep(0, n_studies)
   }
@@ -248,7 +259,7 @@ fixed_objects_re <- list(
   n_subjects = 50,
   dist_b0    = "logistic",
   sd_b0      = 0.75,
-  dist_b1    = "normal",
+  dist_b1    = "logistic",
   sd_b1      = 0.25
 )
 

@@ -8,7 +8,7 @@
 #   visualisation in the Quarto report.
 #
 # INPUT:  output/res_prior_predictive_re.rds
-# OUTPUT: output/prior_predictive_re_summaries.rds  (tidy summaries, 6 rows)
+# OUTPUT: output/prior_predictive_re_summaries.rds  (tidy summaries, 40 rows)
 #         output/prior_predictive_re_draws.rds       (long-format subject draws)
 # ==============================================================================
 
@@ -25,11 +25,13 @@ source(here("R", "prior_sampling.R"))
 # Helper (must match 01b)
 # ------------------------------------------------------------------------------
 
-sample_sd_hyperprior <- function(n, sd_prior_re) {
-  switch(sd_prior_re,
-    student_t   = abs(rt(n, df = 3)) * 2.5,
-    gamma       = rgamma(n, shape = 2, rate = 4),
-    exponential = rexp(n, rate = 4)
+sample_sd_hyperprior <- function(n, hp_family, hp_mean) {
+  switch(hp_family,
+    exponential = rexp(n, rate = 1 / hp_mean),
+    gamma       = rgamma(n, shape = 2, rate = 2 / hp_mean),
+    half_normal = abs(rnorm(n, mean = 0, sd = hp_mean / sqrt(2 / pi))),
+    half_t      = abs(rt(n, df = 3)) * (hp_mean / (2 * sqrt(3) / pi)),
+    stop("Unknown hp_family: ", hp_family)
   )
 }
 
@@ -52,7 +54,7 @@ message("Saved: output/prior_predictive_re_summaries.rds  (",
 # ------------------------------------------------------------------------------
 # Re-simulate draws for visualisation
 # ------------------------------------------------------------------------------
-# For each of the 6 conditions, generate a large set of subject-level
+# For each of the 40 conditions, generate a large set of subject-level
 # (p0, delta_p) draws for density/ridge plots in the report.
 
 set.seed(42)
@@ -62,19 +64,20 @@ n_subjects <- 50
 
 draws_list <- purrr::pmap(
   list(
-    sd_prior_re  = summaries_re$sd_prior_re,
+    hp_family    = summaries_re$hp_family,
+    hp_mean      = summaries_re$hp_mean,
     re_structure = summaries_re$re_structure
   ),
-  function(sd_prior_re, re_structure) {
+  function(hp_family, hp_mean, re_structure) {
 
     # Fixed-effects priors (recommended values)
     b0 <- rlogis(n_studies, location = 0, scale = 0.75)
-    b1 <- rnorm(n_studies,  mean = 0,     sd = 0.25)
+    b1 <- rlogis(n_studies, location = 0, scale = 0.25)
 
     # Study-level hyperprior draws
-    sd_re_study    <- sample_sd_hyperprior(n_studies, sd_prior_re)
+    sd_re_study    <- sample_sd_hyperprior(n_studies, hp_family, hp_mean)
     sd_slope_study <- if (re_structure == "intercept_slope") {
-      sample_sd_hyperprior(n_studies, sd_prior_re)
+      sample_sd_hyperprior(n_studies, hp_family, hp_mean)
     } else {
       rep(0, n_studies)
     }
@@ -96,7 +99,8 @@ draws_list <- purrr::pmap(
     g_inv <- function(x) apply_inverse_link(x, link = "logit")
 
     data.frame(
-      sd_prior_re  = sd_prior_re,
+      hp_family    = hp_family,
+      hp_mean      = hp_mean,
       re_structure = re_structure,
       p_intercept  = g_inv(b0_exp + u),
       delta_p      = g_inv(b0_exp + u + b1_exp + v) -
@@ -109,14 +113,15 @@ draws_list <- purrr::pmap(
 draws_re_long <- bind_rows(draws_list) |>
   mutate(
     abs_delta_p  = abs(delta_p),
-    sd_prior_re  = factor(sd_prior_re,
-                           levels = c("student_t", "gamma", "exponential"),
-                           labels = c("student_t(3, 0, 2.5)",
-                                      "gamma(2, 4)",
-                                      "exponential(4)")),
+    hp_family    = factor(hp_family,
+                          levels = c("exponential", "gamma",
+                                     "half_normal", "half_t"),
+                          labels = c("Exponential", "Gamma(2, .)",
+                                     "Half-Normal", "Half-t(3, 0, .)")),
+    hp_mean      = factor(hp_mean),
     re_structure = factor(re_structure,
-                           levels = c("intercept_only", "intercept_slope"),
-                           labels = c("Intercept only", "Intercept + slope"))
+                          levels = c("intercept_only", "intercept_slope"),
+                          labels = c("Intercept only", "Intercept + slope"))
   )
 
 saveRDS(draws_re_long, here("output", "prior_predictive_re_draws.rds"))
