@@ -78,9 +78,11 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
     ) +
     ggplot2::scale_x_continuous(
       expression("Success probability" ~ italic(p)),
-      limits = c(0, 1), expand = c(0, 0)
+      limits = c(0, 1), expand = ggplot2::expansion(mult = c(0.02, 0.02))
     ) +
-    ggplot2::scale_y_continuous(NULL, expand = ggplot2::expansion(mult = c(0, 0.05))) +
+    ggplot2::scale_y_continuous(NULL, limits = c(0, 5),
+                                expand = ggplot2::expansion(mult = c(0, 0.02)),
+                                oob = scales::squish) +
     ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_colour_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::facet_grid(
@@ -123,11 +125,6 @@ plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
                         linetype = "solid", linewidth = 0.5, color = "grey20") +
     ggplot2::geom_vline(xintercept = c(-0.30, -0.20, -0.10, 0.10, 0.20, 0.30),
                         linetype = "dotted", linewidth = 0.5, color = "grey40") +
-    ggplot2::geom_text(
-      data = data.frame(x = c(0.10, 0.20, 0.30), label = c("0.10", "0.20", "0.30")),
-      ggplot2::aes(x = x, y = Inf, label = label),
-      vjust = 1.5, hjust = -0.1, size = 3, color = "grey40", inherit.aes = FALSE
-    ) +
     ggplot2::scale_x_continuous(
       expression(delta * italic(p)),
       limits = c(-0.75, 0.75),
@@ -137,7 +134,8 @@ plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
     ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::facet_wrap(~link, labeller = ggplot2::labeller(link = link_labels)) +
-    prior_theme()
+    prior_theme() +
+    ggplot2::theme(axis.text = ggplot2::element_text(size = 14))
 }
 
 
