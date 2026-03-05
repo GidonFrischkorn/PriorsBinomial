@@ -42,47 +42,80 @@ dist_labels    <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
 #' @param sd_b1_focus Numeric. Which sd_b1 value to display (for plot title).
 #' @return A ggplot object.
 plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
-  # Analytical reference: matched prior per link (logit+logistic, probit+normal)
-  ref_data <- expand.grid(
-    p     = seq(0.001, 0.999, length.out = 500),
-    sd_b0 = unique(draws_long$sd_b0),
-    link  = c("logit", "probit")
-  )
-  ref_data$density <- mapply(function(p, sd, lnk) {
-    if (lnk == "logit")  d_logistic_on_p(p, scale = sd)
-    else                  d_normal_on_p(p, sigma = sd)
-  }, ref_data$p, ref_data$sd_b0, ref_data$link)
-  # Plotmath-parseable facet labels
-  ref_data$sd_b0_label <- paste0("sd[b[0]] == ", ref_data$sd_b0)
+  ridge_scale <- 1.8
+  dist_b0_levels <- c("Cauchy", "Normal", "Logistic")
 
   draws_long <- draws_long |>
     dplyr::mutate(
       sd_b0_label = paste0("sd[b[0]] == ", sd_b0),
       dist_b0     = factor(dist_b0, levels = c("cauchy", "normal", "logistic"),
-                           labels = c("Cauchy", "Normal", "Logistic"))
+                           labels = dist_b0_levels)
+    )
+
+  # Compute max histogram density per facet panel, matching how
+  # geom_density_ridges(stat = "binline") normalises internally:
+  # it bins each ridge (dist_b0 level) separately, then takes the
+  # global max across all ridges within the panel.
+  bin_breaks <- seq(0, 1, length.out = 81)  # 80 bins
+  panel_max <- draws_long |>
+    dplyr::group_by(sd_b0_label, link, dist_b0) |>
+    dplyr::summarise(
+      ridge_max = max(hist(p_intercept, breaks = bin_breaks, plot = FALSE)$density),
+      .groups = "drop"
+    ) |>
+    dplyr::group_by(sd_b0_label, link) |>
+    dplyr::summarise(
+      hist_max = max(ridge_max),
+      .groups = "drop"
+    )
+
+  # Analytical reference: matched prior per link (logit+logistic, probit+normal)
+  # Replicate for every dist_b0 level so it appears on each ridge
+  ref_data <- expand.grid(
+    p       = seq(0.001, 0.999, length.out = 500),
+    sd_b0   = unique(draws_long$sd_b0),
+    link    = c("logit", "probit"),
+    dist_b0 = dist_b0_levels,
+    stringsAsFactors = FALSE
+  )
+  ref_data$density <- mapply(function(p, sd, lnk) {
+    if (lnk == "logit")  d_logistic_on_p(p, scale = sd)
+    else                  d_normal_on_p(p, sigma = sd)
+  }, ref_data$p, ref_data$sd_b0, ref_data$link)
+  ref_data$sd_b0_label <- paste0("sd[b[0]] == ", ref_data$sd_b0)
+  ref_data$dist_b0 <- factor(ref_data$dist_b0, levels = dist_b0_levels)
+
+  # Position the analytical line on the same scale as the histogram ridges:
+  # y_line = numeric_y_position + (density / panel_hist_max) * ridge_scale
+  ref_data <- ref_data |>
+    dplyr::left_join(panel_max, by = c("sd_b0_label", "link")) |>
+    dplyr::mutate(
+      y_pos = as.numeric(dist_b0) + (density / hist_max) * ridge_scale
     )
 
   ggplot2::ggplot(
     draws_long,
-    ggplot2::aes(x = p_intercept, fill = dist_b0, colour = dist_b0)
+    ggplot2::aes(x = p_intercept, y = dist_b0, fill = dist_b0, colour = dist_b0)
   ) +
-    ggplot2::geom_histogram(
-      ggplot2::aes(y = ggplot2::after_stat(density)),
-      bins = 60, alpha = 0.30, position = "identity", linewidth = 0.2
-    ) +
+    ggridges::geom_density_ridges(stat = "binline", bins = 80,
+                                   alpha = 0.4, scale = ridge_scale) +
     ggplot2::geom_line(
       data = ref_data,
-      ggplot2::aes(x = p, y = density, group = sd_b0_label),
-      linetype = "dashed", linewidth = 0.8, colour = "black",
+      ggplot2::aes(x = p, y = y_pos,
+                   group = interaction(dist_b0, sd_b0_label, link)),
+      linetype = "dashed", linewidth = 0.6, colour = "black",
       inherit.aes = FALSE
     ) +
+    ggplot2::geom_vline(xintercept = c(0.05, 0.95), linetype = "dashed",
+                        linewidth = 0.4, colour = "grey40") +
     ggplot2::scale_x_continuous(
       expression("Success probability" ~ italic(p)),
-      limits = c(0, 1), expand = ggplot2::expansion(mult = c(0.02, 0.02))
+      limits = c(0, 1), breaks = c(0, 0.25, 0.5, 0.75, 1),
+      labels = c("0", "0.25", "0.50", "0.75", "1"),
+      expand = ggplot2::expansion(mult = c(0.02, 0.02))
     ) +
-    ggplot2::scale_y_continuous(NULL, limits = c(0, 5),
-                                expand = ggplot2::expansion(mult = c(0, 0.02)),
-                                oob = scales::squish) +
+    ggplot2::scale_y_discrete("Prior family",
+                               expand = ggplot2::expansion(add = c(0.3, 1.5))) +
     ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_colour_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::facet_grid(
@@ -92,7 +125,8 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
         sd_b0_label = ggplot2::label_parsed
       )
     ) +
-    prior_theme()
+    prior_theme() +
+    ggplot2::coord_cartesian(clip = "off")
 }
 
 
@@ -114,28 +148,45 @@ plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
   draws_long$dist_b1 <- factor(draws_long$dist_b1,
     levels = c("cauchy", "normal", "logistic"),
     labels = c("Cauchy", "Normal", "Logistic"))
-  draws_long$sd_b1 <- factor(draws_long$sd_b1)
+  draws_long$sd_b1_label <- paste0("sd[b[1]] == ", draws_long$sd_b1)
+  # Order facets by numeric sd_b1 value
+  sd_b1_order <- sort(unique(as.numeric(as.character(
+    factor(draws_long$sd_b1)
+  ))))
+  draws_long$sd_b1_label <- factor(
+    draws_long$sd_b1_label,
+    levels = paste0("sd[b[1]] == ", sd_b1_order)
+  )
 
   ggplot2::ggplot(
     draws_long,
-    ggplot2::aes(x = delta_p, y = sd_b1, fill = dist_b1, color = dist_b1)
+    ggplot2::aes(x = delta_p, y = dist_b1, fill = dist_b1, color = dist_b1)
   ) +
-    ggridges::geom_density_ridges(alpha = 0.4, scale = 0.9, rel_min_height = 0.01) +
+    ggridges::geom_density_ridges(stat = "binline", bins = 80,
+                                   alpha = 0.4, scale = 0.9) +
     ggplot2::geom_vline(xintercept = 0,
                         linetype = "solid", linewidth = 0.5, color = "grey20") +
     ggplot2::geom_vline(xintercept = c(-0.30, -0.20, -0.10, 0.10, 0.20, 0.30),
                         linetype = "dotted", linewidth = 0.5, color = "grey40") +
     ggplot2::scale_x_continuous(
       expression(delta * italic(p)),
-      limits = c(-0.75, 0.75),
-      breaks = seq(-0.75, 0.75, 0.25)
+      limits = c(-1, 1),
+      breaks = seq(-1, 1, 0.25)
     ) +
-    ggplot2::scale_y_discrete(expression(sd[b[1]])) +
+    ggplot2::scale_y_discrete("Prior family") +
     ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_color_viridis_d("Prior family", option = "D", end = 0.85) +
-    ggplot2::facet_wrap(~link, labeller = ggplot2::labeller(link = link_labels)) +
+    ggplot2::facet_wrap(~ sd_b1_label, ncol = 3,
+                        labeller = ggplot2::label_parsed) +
     prior_theme() +
-    ggplot2::theme(axis.text = ggplot2::element_text(size = 14))
+    ggplot2::theme(
+      legend.position = "inside",
+      legend.position.inside = c(0.83, 0.08),
+      legend.justification = c(0.5, 0.5),
+      legend.background = ggplot2::element_rect(fill = "white", colour = NA),
+      legend.key.size = ggplot2::unit(0.8, "cm"),
+      axis.title.x = ggplot2::element_text(hjust = 0.17)
+    )
 }
 
 
@@ -280,7 +331,7 @@ plot_link_equivalence <- function(summaries, sd_b0_focus = 0.75) {
       limits = c(0, 1)
     ) +
     ggplot2::scale_color_viridis_d("Link function",
-                                    labels = link_labels, option = "D", end = 0.7) +
+                                    labels = link_labels, option = "D", end = 0.85) +
     ggplot2::scale_linetype_discrete("Prior family") +
     prior_theme()
 }

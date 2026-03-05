@@ -397,7 +397,8 @@ re_pp_draws |>
   ungroup() |>
   ggplot(aes(x = p_intercept, y = sd_prior_re,
              fill = sd_prior_re, colour = sd_prior_re)) +
-  geom_density_ridges(alpha = 0.5, scale = 0.9, rel_min_height = 0.01) +
+  geom_density_ridges(stat = "binline", bins = 80,
+                      alpha = 0.5, scale = 0.9) +
   geom_vline(xintercept = c(0.05, 0.95), linetype = "dashed",
              colour = "grey40", linewidth = 0.5) +
   facet_wrap(~re_structure) +
@@ -434,7 +435,8 @@ re_pp_draws |>
   ungroup() |>
   ggplot(aes(x = delta_p, y = sd_prior_re,
              fill = sd_prior_re, colour = sd_prior_re)) +
-  geom_density_ridges(alpha = 0.5, scale = 0.9, rel_min_height = 0.01) +
+  geom_density_ridges(stat = "binline", bins = 80,
+                      alpha = 0.5, scale = 0.9) +
   geom_vline(xintercept = 0, linewidth = 0.5, colour = "grey20") +
   geom_vline(xintercept = c(-0.30, -0.20, -0.10, 0.10, 0.20, 0.30),
              linetype = "dotted", linewidth = 0.5, colour = "grey40") +
@@ -659,7 +661,8 @@ demo_draws <- do.call(rbind, demo_list)
 
 p_single <- ggplot(demo_draws, aes(x = delta_p_pair,
                                     fill = J, colour = J)) +
-  geom_density(alpha = 0.3, linewidth = 0.6) +
+  geom_histogram(aes(y = after_stat(density)), alpha = 0.3,
+                 position = "identity", bins = 80, linewidth = 0.3) +
   geom_vline(xintercept = c(-0.20, -0.10, 0.10, 0.20),
              linetype = "dotted", linewidth = 0.4,
              colour = "grey40") +
@@ -672,7 +675,8 @@ p_single <- ggplot(demo_draws, aes(x = delta_p_pair,
 
 p_max <- ggplot(demo_draws, aes(x = max_abs_dp,
                                  fill = J, colour = J)) +
-  geom_density(alpha = 0.3, linewidth = 0.6) +
+  geom_histogram(aes(y = after_stat(density)), alpha = 0.3,
+                 position = "identity", bins = 80, linewidth = 0.3) +
   geom_vline(xintercept = c(0.10, 0.20, 0.30),
              linetype = "dotted", linewidth = 0.4,
              colour = "grey40") +
