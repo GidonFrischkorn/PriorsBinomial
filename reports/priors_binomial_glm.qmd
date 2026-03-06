@@ -33,14 +33,13 @@ author-note:
     study-registration: "This study was not preregistered."
     data-sharing: "Simulation code and analysis scripts are available at [repository link]."
     conflict-of-interest: "The authors declare no conflicts of interest."
-    financial-support: "This research was supported by a grant from the Swiss National Science Foundation (SNSF)."
+    financial-support: "This research was supported by a grant from the Swiss National Science Foundation (SNSF) awarded to Gidon T. Frischkorn (Grant No. 208828)."
     authorship-agreements: |
       Gidon T. Frischkorn: Conceptualization, Methodology, Software, Formal Analysis, Visualization, Writing -- Original Draft.
       Joscha Dutli: Conceptualization, Methodology, Writing -- Review & Editing.
       Philipp Musfeld: Conceptualization,Methodology, Writing -- Review & Editing.
       Klaus Oberauer: Conceptualization, Supervision, Methodology, Writing -- Original Draft.
 floatsintext: true
-output-dir: "."
 format:
   apaquarto-docx: default
   apaquarto-pdf:
@@ -105,7 +104,9 @@ Often we want to test the hypothesis that an effect of interest - for instance, 
 
 For models assuming a normal distribution of the dependent variable, @rouder2012 proposed default priors for standardized effect sizes that can be used when there are no good theoretical or empirical grounds for setting priors. The rationale for default priors is that even if we know nothing about the effect of interest, we have some general knowledge about the distribution of effect sizes in our field that default priors can reflect. For binomial GLMs no such default priors exist.
 
-This gap matters because the nonlinear link function in GLMs creates a prior-link interaction: a prior that appears reasonable on the regression-coefficient scale (i.e., the scale of the linear combination of predictors) can produce implausible distributions on the probability scale [@gelman2008; @ghosh2018]. Previous work addressed this problem for posterior estimation [@schonbrodt2018; @wagenmakers2018a]; we address the complementary problem of choosing priors that produce well-calibrated Bayes Factors for hypothesis testing.
+This gap matters because the nonlinear link function in GLMs creates a prior-link interaction: a prior that appears reasonable on the regression-coefficient scale (i.e., the scale of the linear combination of predictors) can produce implausible distributions on the probability scale [@gelman2008; @ghosh2018]. Previous work addressed this problem for posterior estimation [@schonbrodt2018; @wagenmakers2018a]; we address the complementary problem of choosing priors that produce well-calibrated Bayes Factors for hypothesis testing.[^elicitation]
+
+[^elicitation]: Recent advances in prior elicitation have developed methods that translate expert knowledge into priors, either through structured queries about observable quantities [@hosack2024; @mikkola2023] or simulation-based optimization [@bockting2024]. These approaches are valuable when domain expertise is available, but they require expert input for each new application. Our contribution is complementary: we provide principled *default* priors that can be used off the shelf when no domain-specific knowledge is available -- analogous to what @rouder2012 provided for $t$-tests and ANOVA. Following the taxonomy of @mikkola2023, our workflow operates in the observable space, using the link function to bridge between prior distributions on the coefficient scale and their implications on the observation scale.
 
 This difference matters because priors recommended for estimation are usually highly uninformative (i.e., very broad) to minimally influence the posteriors. For instance, @gelman2008 proposed weakly informative Cauchy(0, 2.5) priors for logistic regression. The R package `brms` [@burkner2017; @burkner2018] for Bayesian GLM places a `student_t(3, 0, 2.5)` prior on the intercept and a flat, improper prior on all population-level effects. Such weakly informative priors on effects are not suited for hypothesis testing with Bayes Factors, because they bias the outcome in favor of the null hypothesis.
 
@@ -626,16 +627,14 @@ demo_list <- lapply(c(2, 3, 4), function(J) {
 demo_draws <- do.call(rbind, demo_list)
 
 p_single <- ggplot(demo_draws, aes(x = delta_p_pair,
-                                    fill = J, colour = J)) +
-  geom_histogram(aes(y = after_stat(density)), alpha = 0.3,
-                 position = "identity", bins = 80, linewidth = 0.3) +
+                                    y = J, fill = J)) +
+  geom_density_ridges(alpha = 0.5, scale = 1.2) +
   geom_vline(xintercept = c(-0.20, -0.10, 0.10, 0.20),
              linetype = "dotted", linewidth = 0.4,
              colour = "grey40") +
   scale_x_continuous(expression(delta * p ~ "(single pair)"),
                      limits = c(-0.8, 0.8)) +
   scale_fill_viridis_d("Factor levels", option = "D", end = 0.85) +
-  scale_colour_viridis_d("Factor levels", option = "D", end = 0.85) +
   ggtitle("Single pairwise comparison") +
   prior_theme()
 
@@ -684,7 +683,11 @@ The workflow demonstrated here - analytical matched priors, systematic prior pre
 
 *Distributional regression.* In GAMLSS [@klein2015] and brms distributional models [@burkner2021], *all* parameters of the response distribution (mean, variance, shape) are linked to predictors through link functions. Each parameter therefore faces its own prior--link interaction. The matched prior principle and the simulation approach developed here provide a systematic way to address prior specification for each parameter.
 
-In each case, the key steps are: (1) identify the link function and the corresponding matched prior family via the probability integral transform; (2) use prior predictive simulation to map prior scales to interpretable quantities on the observation scale; and (3) if Bayes Factor testing is intended, run a calibration simulation to verify the sensitivity of the strength of evidence for one hypothesis over the other.
+*Lognormal regression for response times.* Response times are among the most common continuous outcomes in experimental psychology. Because they are right-skewed and strictly positive, lognormal regression (`family = lognormal()` in `brms`, with an identity link on the log scale) is a natural modelling choice. Here, the matched prior principle from Step 1 does not apply: the identity link involves no nonlinear CDF, so there is no distribution family to "match." Nevertheless, a prior--transform interaction remains, because the exponential function maps the log-scale intercept to the median response time in milliseconds. For instance, a $\text{Normal}(6, 1)$ prior on the intercept implies a 95% range of median response times from $\exp(4) \approx 55$ ms to $\exp(8) \approx 2{,}981$ ms -- implausibly broad for most cognitive tasks. A tighter prior such as $\text{Normal}(6, 0.25)$ concentrates the median in the $\exp(5.5)$--$\exp(6.5) \approx 245$--$665$ ms range more typical of simple reaction-time paradigms. For effect coefficients, the mapping is multiplicative: a coefficient $b_1$ on the log scale implies a proportional change of $\exp(b_1)$ on the response-time scale, so a $\text{Normal}(0, 0.1)$ effect prior treats effects up to roughly 20% speedup or slowdown as plausible. Steps 2 and 3 of the workflow apply directly: prior predictive simulation reveals what ranges of absolute response times and proportional effects the prior treats as plausible, and Bayes Factor calibration verifies that the chosen scale yields well-behaved evidence. This illustrates that even when CDF-matching is unavailable, the simulation and calibration steps remain essential tools for principled prior specification [see also @hosack2024 for an expert-elicitation approach to lognormal GLMs].[^elicitation-lognormal]
+
+[^elicitation-lognormal]: When substantive domain expertise is available, expert elicitation methods [@bockting2024; @hosack2024; @mikkola2023] can produce more informative priors tailored to specific research questions.
+
+In each case, the key steps are: (1) identify the link function and the corresponding matched prior family via the probability integral transform; (2) use prior predictive simulation to map prior scales to interpretable quantities on the observation scale; and (3) if Bayes Factor testing is intended, run a calibration simulation to verify the sensitivity of the strength of evidence for one hypothesis over the other. The default priors presented for binomial models serve as principled starting points from which informed priors can be developed.
 
 ## References
 
