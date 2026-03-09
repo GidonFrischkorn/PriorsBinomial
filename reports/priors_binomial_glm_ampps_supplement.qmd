@@ -1,8 +1,10 @@
 ---
-title: "Supplementary Materials: A Three-Step Workflow for Prior Specification in GLMs"
-shorttitle: "Supplement — Prior Specification Workflow"
+title: "Supplementary Materials: How to Set Priors for Hypothesis Testing in Generalized Linear Models"
+shorttitle: "Supplement — Priors for Hypothesis Testing in GLMs"
 author:
   - name: Gidon T. Frischkorn
+    corresponding: true
+    email: gidon.frischkorn@psychologie.uzh.ch
     affiliations:
       - name: University of Zurich
       - name: University of Lucerne

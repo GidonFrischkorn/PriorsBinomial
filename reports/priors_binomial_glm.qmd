@@ -1,6 +1,6 @@
 ---
-title: "Default Prior Recommendations for Binomial Models: A Generalizable Workflow for GLMs"
-shorttitle: "Default Priors for Binomial Models"
+title: "Default Prior Recommendations for Hypothesis Testing with Binomial Models: A Generalizable Workflow for GLMs"
+shorttitle: "Default Priors for Hypothesis Testing in Binomial Models"
 author:
   - name: Gidon T. Frischkorn
     orcid: 0000-0002-5055-9764
@@ -31,7 +31,7 @@ author:
 author-note:
   disclosures:
     study-registration: "This study was not preregistered."
-    data-sharing: "Simulation code and analysis scripts are available at [repository link]."
+    data-sharing: "Simulation code and analysis scripts are available at https://github.com/GidonFrischkorn/PriorsBinomial."
     conflict-of-interest: "The authors declare no conflicts of interest."
     financial-support: "This research was supported by a grant from the Swiss National Science Foundation (SNSF) awarded to Gidon T. Frischkorn (Grant No. 208828)."
     authorship-agreements: |
@@ -475,7 +475,7 @@ bf_raw_re |>
   theme(axis.text.x = element_text(angle = 30, hjust = 1))
 ```
 
-@fig-bf-violin-re shows that the choice of random-effects hyperprior similarly has no meaningful impact on the distribution of Bayes Factor evidence, despite the varying scales. All three hyperpriors - Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4) - produce nearly identical BF distributions across all effect sizes. Note that the Student-*t*(3, 0, 2.5) is included at its `brms` default scale (mean $\approx$ 2.76), which is far wider than the Gamma(2, 4) (mean = 0.50) and Exponential(4) (mean = 0.25). As the prior predictive analysis showed (see *Random Effects Hyperprior* above), at matched scale, all distribution families produce virtually identical results - the key driver is the scale, not the family. The fact that even this large difference in scale does not meaningfully shift the BF distribution indicates that the random-effects hyperprior has little influence on the Bayes Factor for the fixed-effect of interest, which is the primary target of hypothesis testing. Note, however, that for the effect prior width (@fig-bf-violin-family), a modest effect is visible at $b_1 = 0.2$: narrower priors ($\text{sd} = 0.25$) yield somewhat stronger evidence for $H_1$ than wider priors ($\text{sd} = 0.50$), though the difference is small relative to the overall variability across replications.
+@fig-bf-violin-re shows that the choice of random-effects hyperprior similarly has no meaningful impact on the distribution of Bayes Factor evidence, despite the varying scales. All three hyperpriors - Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4) - produce nearly identical BF distributions across all effect sizes. Note that the Student-*t*(3, 0, 2.5) is included at its `brms` default scale (mean $\approx$ 2.76), which is far wider than the Gamma(2, 4) (mean = 0.50) and Exponential(4) (mean = 0.25). As the prior predictive analysis showed (see *Random Effects Hyperprior* above), at matched scale, all distribution families produce virtually identical results - the key driver is the scale, not the family. The fact that even this large difference in scale does not meaningfully shift the BF distribution indicates that the random-effects hyperprior has little influence on the Bayes Factor for the fixed-effect of interest, which is the primary target of hypothesis testing.
 
 ### Summary {#sec-bf-summary}
 
@@ -599,6 +599,7 @@ An overview of the resulting predictor SDs and rescaled prior widths for $J = 2$
 #|   preserves per-comparison calibration."
 #| fig-height: 4.5
 #| fig-width: 6
+#| message: false
 
 set.seed(2024)
 n_draws <- 50000
