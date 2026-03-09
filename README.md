@@ -2,8 +2,11 @@
 
 > Establishing principled default priors for binomial GLMs (logistic and probit regression) via prior predictive simulation.
 
-**Authors:** Klaus Oberauer, Joscha Dutli, Philipp Musfeld, Gidon Frischkorn  
-**Affiliations:** University of Zurich · University of Lucerne
+**Authors:** Gidon T. Frischkorn¹², Joscha Dutli¹, Philipp Musfeld¹³, Klaus Oberauer¹
+
+¹ Department of Psychology, University of Zurich
+² Faculty of Behavioral Sciences and Psychology, University of Lucerne
+³ Department of Psychology, University of Amsterdam
 
 ---
 
@@ -169,7 +172,7 @@ Ready-to-use `brms` prior specifications are provided in the report's Recommenda
 If you use this simulation framework, please cite the accompanying report and the key software dependencies:
 
 - Bürkner, P.-C. (2017). brms: An R package for Bayesian multilevel models using Stan. *Journal of Statistical Software*, *80*(1), 1–28.
-- Frischkorn, G. T., Oberauer, K., Dutli, J., & Musfeld, P. (in preparation). *Default priors for binomial GLMs: A prior predictive analysis.*
+- Frischkorn, G. T., Dutli, J., Musfeld, P., & Oberauer, K. (in preparation). *Default priors for binomial GLMs: A prior predictive analysis.*
 
 ---
 
