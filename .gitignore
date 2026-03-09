@@ -8,6 +8,14 @@
 output/
 figures/
 
+# Rendered Quarto outputs (regenerable from .qmd source)
+reports/*.html
+reports/*.pdf
+reports/*.docx
+reports/*_files/
+reports/*.tex
+reports/*.fff
+
 # Local files (working docs, DOCX)
 /local
 
