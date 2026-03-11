@@ -101,8 +101,8 @@ For the logit link with a $\text{Logistic}(0, s)$ prior on $b_0$: $f(p) = f_{\te
 #| label: fig-S1-floor-ceiling
 #| fig-cap: "Proportion of prior predictive mass in the floor/ceiling region
 #|   (p < 0.05 or p > 0.95) as a function of intercept prior SD and family.
-#|   The matched prior at $sd_{b_0} = 1.0$ places exactly 10% in this region
-#|   (2 x 0.05 = 0.10), confirming the uniform result. At $sd_{b_0} = 0.75$,
+#|   The matched prior at $\text{sd}_{b_0} = 1.0$ places exactly 10% in this region
+#|   (2 x 0.05 = 0.10), confirming the uniform result. At $\text{sd}_{b_0} = 0.75$,
 #|   floor/ceiling mass drops below 10% for both matched priors."
 #| fig-height: 6
 #| fig-width: 10
