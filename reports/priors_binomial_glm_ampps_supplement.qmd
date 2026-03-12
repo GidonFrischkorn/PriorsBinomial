@@ -69,9 +69,9 @@ The prior predictive simulation crossed the following factors:
 
 - **Link function**: logit, probit (2 levels)
 - **Intercept prior family** ($b_0$): Normal, Logistic, Cauchy (3 levels)
-- **Intercept prior SD** ($\text{sd}_{b_0}$): 0.50, 0.75, 1.00, 1.50 (4 levels)
+- **Intercept prior SD** ($\mathrm{sd}_{b_0}$): 0.50, 0.75, 1.00, 1.50 (4 levels)
 - **Effect prior family** ($b_1$): Normal, Logistic, Cauchy (3 levels)
-- **Effect prior SD** ($\text{sd}_{b_1}$): 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 2.00 (10 levels)
+- **Effect prior SD** ($\mathrm{sd}_{b_1}$): 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 2.00 (10 levels)
 
 This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each condition, 10 replications of 10,000 draws were performed using the SimDesign package.
 
@@ -79,7 +79,7 @@ This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each 
 
 The BF calibration crossed:
 
-- **Intercept prior family**: Logistic, Normal (2 levels; both at $\text{sd}_{b_0} = 0.75$)
+- **Intercept prior family**: Logistic, Normal (2 levels; both at $\mathrm{sd}_{b_0} = 0.75$)
 - **Effect prior family**: Normal, Logistic, Cauchy (3 levels)
 - **Effect prior SD**: 0.25, 0.50 (2 levels)
 - **True effect** ($b_1$): 0, 0.05, 0.10, 0.20, 0.50 (5 levels)
@@ -92,7 +92,7 @@ A separate random-effects simulation held fixed-effects priors at the recommende
 
 ### Density Formulas for Analytical Overlays
 
-For the logit link with a $\text{Logistic}(0, s)$ prior on $b_0$: $f(p) = f_{\text{Logis}}(\text{logit}(p), 0, s) / [p(1-p)]$. At $s = 1$, the logistic density and the Jacobian $p(1-p)$ cancel, giving $f(p) = 1$. For the probit link with a $\text{Normal}(0, \sigma)$ prior: $f(p) = \phi(\text{probit}(p)/\sigma) / [\sigma \cdot \phi(\text{probit}(p))]$, where $\phi$ denotes the standard normal density. At $\sigma = 1$, the normal densities cancel, again yielding $f(p) = 1$.
+For the logit link with a $\mathrm{Logistic}(0, s)$ prior on $b_0$: $f(p) = f_{\mathrm{Logis}}(\mathrm{logit}(p), 0, s) / [p(1-p)]$. At $s = 1$, the logistic density and the Jacobian $p(1-p)$ cancel, giving $f(p) = 1$. For the probit link with a $\mathrm{Normal}(0, \sigma)$ prior: $f(p) = \phi(\mathrm{probit}(p)/\sigma) / [\sigma \cdot \phi(\mathrm{probit}(p))]$, where $\phi$ denotes the standard normal density. At $\sigma = 1$, the normal densities cancel, again yielding $f(p) = 1$.
 
 
 ## Supplementary Figures
@@ -101,8 +101,8 @@ For the logit link with a $\text{Logistic}(0, s)$ prior on $b_0$: $f(p) = f_{\te
 #| label: fig-S1-floor-ceiling
 #| fig-cap: "Proportion of prior predictive mass in the floor/ceiling region
 #|   (p < 0.05 or p > 0.95) as a function of intercept prior SD and family.
-#|   The matched prior at $\text{sd}_{b_0} = 1.0$ places exactly 10% in this region
-#|   (2 x 0.05 = 0.10), confirming the uniform result. At $\text{sd}_{b_0} = 0.75$,
+#|   The matched prior at $\\mathrm{sd}_{b_0} = 1.0$ places exactly 10% in this region
+#|   (2 x 0.05 = 0.10), confirming the uniform result. At $\\mathrm{sd}_{b_0} = 0.75$,
 #|   floor/ceiling mass drops below 10% for both matched priors."
 #| fig-height: 6
 #| fig-width: 10
