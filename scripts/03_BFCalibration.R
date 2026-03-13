@@ -105,9 +105,6 @@ Generate <- function(condition, fixed_objects = NULL) {
   )
 }
 
-
-# example_dat <- Generate(condition = Design[1,], fixed_objects = list(b0_range = c(0.4, 0.9), sd_b0 = 0.75, sd_re = 0.25))
-
 #' Analyse: fit brms model with random intercept and compute BF10
 #'
 #' @param condition  One row of Design.
@@ -135,11 +132,6 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
 
   c(BF10 = bf10, BF01 = 1 / bf10, true_p0 = true_p0)
 }
-
-
-# res <- Analyse(condition = Design[1,],
-#                dat = example_dat,
-#                fixed_objects = list(b0_range = c(0.4, 0.9), sd_b0 = 0.75, sd_re = 0.25))
 
 #' Summarise: compute power and specificity metrics
 #'

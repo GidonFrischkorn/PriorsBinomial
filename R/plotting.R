@@ -1,9 +1,8 @@
 # plotting.R
 # ggplot2 figure functions for the prior predictive analysis.
-# All figures use theme_minimal() + viridis color palette (colorblind-safe).
+# All figures use theme_minimal() + viridis color palette.
 #
 # Required packages: ggplot2, ggridges, viridis, dplyr, tidyr
-
 
 # ==============================================================================
 # Shared theme and helpers
@@ -20,7 +19,7 @@ prior_theme <- function() {
     )
 }
 
-# Human-readable labels for facets and legends
+# labels for facets and legends
 link_labels    <- c(logit = "Logit link", probit = "Probit link")
 dist_labels    <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
 
@@ -29,18 +28,6 @@ dist_labels    <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
 # Figure 1: Density ridges of p_intercept by sd_b0
 # ==============================================================================
 
-#' Figure 1: Prior predictive distribution of success probability (intercept)
-#'
-#' Density ridge plots of p_intercept (= g^{-1}(b0)) for each value of sd_b0,
-#' colored by dist_b0 (prior family), faceted by link function.
-#' Overlays exact analytical density for matched cases (logit+logistic,
-#' probit+normal) at the sd_b0 value corresponding to each ridge.
-#'
-#' @param draws_long  data.frame. Long-format draws with columns: link, dist_b0,
-#'                    sd_b0, dist_b1, sd_b1, p_intercept, delta_p. Typically a
-#'                    subset filtered to a single dist_b1 / sd_b1 combination.
-#' @param sd_b1_focus Numeric. Which sd_b1 value to display (for plot title).
-#' @return A ggplot object.
 plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
   ridge_scale <- 1.8
   dist_b0_levels <- c("Cauchy", "Normal", "Logistic")
@@ -52,10 +39,6 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
                            labels = dist_b0_levels)
     )
 
-  # Compute max histogram density per facet panel, matching how
-  # geom_density_ridges(stat = "binline") normalises internally:
-  # it bins each ridge (dist_b0 level) separately, then takes the
-  # global max across all ridges within the panel.
   bin_breaks <- seq(0, 1, length.out = 81)  # 80 bins
   panel_max <- draws_long |>
     dplyr::group_by(sd_b0_label, link, dist_b0) |>
@@ -69,8 +52,6 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
       .groups = "drop"
     )
 
-  # Analytical reference: matched prior per link (logit+logistic, probit+normal)
-  # Replicate for every dist_b0 level so it appears on each ridge
   ref_data <- expand.grid(
     p       = seq(0.001, 0.999, length.out = 500),
     sd_b0   = unique(draws_long$sd_b0),
@@ -85,8 +66,6 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
   ref_data$sd_b0_label <- paste0("sd[b[0]] == ", ref_data$sd_b0)
   ref_data$dist_b0 <- factor(ref_data$dist_b0, levels = dist_b0_levels)
 
-  # Position the analytical line on the same scale as the histogram ridges:
-  # y_line = numeric_y_position + (density / panel_hist_max) * ridge_scale
   ref_data <- ref_data |>
     dplyr::left_join(panel_max, by = c("sd_b0_label", "link")) |>
     dplyr::mutate(
@@ -134,16 +113,6 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
 # Figure 2: Density ridges of abs_delta_p by sd_b1
 # ==============================================================================
 
-#' Figure 2: Prior predictive distribution of effect size on probability scale
-#'
-#' Density ridge plots of delta_p (signed) for each value of sd_b1, colored by dist_b1,
-#' faceted by link function. Vertical reference lines at 0, ±0.10, ±0.20, ±0.30.
-#'
-#' @param draws_long data.frame. Long-format draws with columns: link, dist_b1,
-#'                   sd_b1, delta_p. Typically filtered to a single
-#'                   dist_b0 / sd_b0 combination.
-#' @param sd_b0_focus Numeric. Which sd_b0 value is shown (for subtitle).
-#' @return A ggplot object.
 plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
   draws_long$dist_b1 <- factor(draws_long$dist_b1,
     levels = c("cauchy", "normal", "logistic"),
@@ -194,17 +163,6 @@ plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
 # Figure 3: Floor/ceiling heatmap
 # ==============================================================================
 
-#' Figure 3: Floor/ceiling probability heatmap
-#'
-#' Heatmap of P(p_intercept < 0.05 | p_intercept > 0.95) by sd_b0 x dist_b0,
-#' faceted by link function. Contour line at threshold = 0.10.
-#'
-#' @param summaries data.frame. Output from SimDesign post-processing with
-#'                  columns: link, dist_b0, sd_b0, dist_b1, sd_b1,
-#'                  prob_floor_ceiling.
-#' @param threshold Numeric. Contour level for acceptable floor/ceiling mass.
-#'                  Default 0.10.
-#' @return A ggplot object.
 plot_floor_ceiling_heatmap <- function(summaries, threshold = 0.10) {
   dat <- summaries |>
     dplyr::summarise(
@@ -214,7 +172,6 @@ plot_floor_ceiling_heatmap <- function(summaries, threshold = 0.10) {
   dat$sd_b0   <- factor(dat$sd_b0)
   dat$dist_b0 <- factor(dat$dist_b0, levels = c("cauchy", "normal", "logistic"),
                         labels = c("Cauchy", "Normal", "Logistic"))
-  # contrast-aware text: white on dark (high) cells, black on light (low) cells
   fill_mid <- max(dat$prob_floor_ceiling, 0.20) / 2
   dat$text_color <- ifelse(dat$prob_floor_ceiling > fill_mid, "white", "black")
 
@@ -242,21 +199,10 @@ plot_floor_ceiling_heatmap <- function(summaries, threshold = 0.10) {
 # Figure 4: Quantile profile of abs_delta_p vs sd_b1
 # ==============================================================================
 
-#' Figure 4: Quantile profile — prior scale to implied effect size
-#'
-#' Line plot of q50, q90, q95 of |delta_p| as a function of sd_b1,
-#' colored by dist_b1, faceted by link function.
-#'
-#' @param summaries data.frame. Summary statistics with columns: link, dist_b1,
-#'                  sd_b1, adp_q50, adp_q90, adp_q95.
-#' @param sd_b0_focus Numeric. Which sd_b0 to display (filter applied internally).
-#' @return A ggplot object.
 plot_quantile_profile <- function(summaries, sd_b0_focus = 0.75) {
   dat <- summaries |>
     dplyr::filter(
       sd_b0 == sd_b0_focus,
-      # Restrict to matched intercept prior per link to avoid discontinuities
-      # caused by aggregating across multiple dist_b0 values
       (link == "logit"  & dist_b0 == "logistic") |
       (link == "probit" & dist_b0 == "normal")
     ) |>
@@ -299,20 +245,10 @@ plot_quantile_profile <- function(summaries, sd_b0_focus = 0.75) {
 # Figure 5: Logit–probit equivalence
 # ==============================================================================
 
-#' Figure 5: Logit–probit equivalence of matched priors
-#'
-#' For each dist_b1 family, compares the q90 of |delta_p| implied by
-#' Logistic(0, sd_b1) on logit scale versus Normal(0, sd_b1) on probit scale,
-#' showing which sd values produce the same effect size distribution.
-#'
-#' @param summaries data.frame. Summary statistics for both logit and probit links.
-#' @param sd_b0_focus Numeric. Which sd_b0 to display.
-#' @return A ggplot object.
 plot_link_equivalence <- function(summaries, sd_b0_focus = 0.75) {
   dat <- summaries |>
     dplyr::filter(sd_b0 == sd_b0_focus, dist_b0 %in% c("logistic", "normal")) |>
     dplyr::mutate(
-      # Only show matched-prior cases for clean comparison
       matched = (link == "logit" & dist_b0 == "logistic") |
                 (link == "probit" & dist_b0 == "normal"),
       dist_b1 = factor(dist_b1, levels = c("cauchy", "normal", "logistic"),
@@ -341,18 +277,6 @@ plot_link_equivalence <- function(summaries, sd_b0_focus = 0.75) {
 # Figure 6: Misfit heatmap
 # ==============================================================================
 
-#' Figure 6: Prior-link misfit heatmap
-#'
-#' Heatmap of mean KL divergence (or mean absolute deviation from Uniform)
-#' of p_intercept distribution for each (link x dist_b0) combination,
-#' as a function of sd_b0.
-#'
-#' Uses the summary statistic prob_floor_ceiling as a proxy for misfit severity:
-#' a matched prior at sd=1 has near-zero floor/ceiling mass; misfit priors
-#' accumulate more mass in the tails.
-#'
-#' @param summaries data.frame. Summary statistics.
-#' @return A ggplot object.
 plot_misfit_heatmap <- function(summaries) {
   dat <- summaries |>
     dplyr::summarise(
@@ -368,7 +292,6 @@ plot_misfit_heatmap <- function(summaries) {
         dplyr::recode(dist_b0, normal = "Normal", logistic = "Logistic", cauchy = "Cauchy")
       )
     )
-  # contrast-aware text: white on dark (high) cells, black on light (low) cells
   fill_mid <- max(dat$prob_floor_ceiling) / 2
   dat$text_color <- ifelse(dat$prob_floor_ceiling > fill_mid, "white", "black")
 

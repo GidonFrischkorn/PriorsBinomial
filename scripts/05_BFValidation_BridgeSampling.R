@@ -92,17 +92,6 @@ Generate <- function(condition, fixed_objects = NULL) {
   )
 }
 
-# dat <- Generate(condition = Design[1,],
-#                 fixed_objects = list(
-#                   b0_range    = c(0.4, 0.9),
-#                   sd_b0       = 0.75,
-#                   true_sd_re  = 0.25,
-#                   sd_prior_re = "exponential",
-#                   dist_b0     = "logistic",
-#                   n_subjects  = 60,
-#                   n_trials    = 50
-#                 ))
-
 #' Analyse: compute BF10 via both Savage-Dickey and bridge sampling
 #'
 #' Returns both BF estimates for the same dataset, enabling a paired comparison.
@@ -162,19 +151,6 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
 
   c(BF10_SD = bf10_sd, BF10_BS = bf10_bs, true_p0 = true_p0)
 }
-
-
-# ret <- Analyse(condition = Design[1,],
-#                dat = dat,
-#                fixed_objects = list(
-#                  b0_range    = c(0.4, 0.9),
-#                  sd_b0       = 0.75,
-#                  true_sd_re  = 0.25,
-#                  sd_prior_re = "exponential",
-#                  dist_b0     = "logistic",
-#                  n_subjects  = 60,
-#                  n_trials    = 50
-#                ))
 
 #' Summarise: compare SD and BS estimates
 Summarise <- function(condition, results, fixed_objects = NULL) {
