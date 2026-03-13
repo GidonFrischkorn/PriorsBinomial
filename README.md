@@ -89,7 +89,7 @@ Extends Goal 1 to mixed models with subject-level random intercepts and/or slope
 
 ### Goal 2 — BF Calibration
 
-For each prior configuration, 500 simulated datasets are generated under the null ($\beta_1 = 0$) and alternative ($\beta_1 \neq 0$). Models are fit with `brms` and Bayes factors are computed via `bridgesampling` to assess false-positive and true-positive rates.
+For each prior configuration, 100 simulated datasets are generated under the null ($\beta_1 = 0$) and alternative ($\beta_1 \neq 0$). Models are fit with `brms` and Bayes factors are computed via `bridgesampling` to assess false-positive and true-positive rates.
 
 ### BF Validation (Script 05)
 
