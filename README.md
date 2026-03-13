@@ -189,7 +189,7 @@ The `output/` directory is gitignored due to file size. To reproduce locally, ru
 
 If you use this simulation framework, please cite:
 
-- Frischkorn, G. T., Dutli, J., Musfeld, P., & Oberauer, K. (in preparation). *How to set priors for hypothesis testing in generalized linear models: A three-step workflow with an application to binomial models.*
+- Frischkorn, G. T., Dutli, J., Musfeld, P., & Oberauer, K. (preprint). *How to set priors for hypothesis testing in generalized linear models: A three-step workflow with an application to binomial models.* PsyArXiv. <https://osf.io/preprints/psyarxiv/q7byw_v1>
 - Bürkner, P.-C. (2017). brms: An R package for Bayesian multilevel models using Stan. *Journal of Statistical Software*, *80*(1), 1–28.
 
 ---
