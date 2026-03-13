@@ -1,50 +1,6 @@
 # ==============================================================================
 # Script 03: BF Calibration Simulation
 # ==============================================================================
-#
-# PURPOSE:
-#   Goal 2: For each combination of prior specification, true effect size, and
-#   sample size, simulate binomial datasets and compute Bayes factors to
-#   assess power (P(BF10 > threshold | H1)) and type-I specificity
-#   (P(BF01 > threshold | H0)).
-#
-# MODEL:
-#   Two-condition design with sum-to-zero contrast x in {+1, -1}.
-#   k_i ~ Binomial(n_trials, p_i)
-#   g(p_i) = b0 + b1 * x_i
-#   H1: b0 ~ matched_prior, b1 ~ effect_prior
-#   H0: b0 ~ matched_prior, b1 constrained to 0
-#
-# DESIGN (360 conditions x 100 reps):
-#   dist_b0     in {logistic, normal}      [matched vs. misfit for logit]
-#   dist_b1     in {normal, logistic, cauchy}
-#   sd_b1       in {0.25, 0.50}
-#   true_b1     in {0.00, 0.05, 0.10, 0.20, 0.50}
-#   n_subjects  in {30, 60, 100}
-#   n_trials    in {20, 50}
-#
-# FIXED:
-#   link     = "logit" (probit is symmetric by the matched prior principle)
-#   b0_range = c(0.4, 0.9): true_b0 is sampled per replication from
-#              Uniform(0.4, 0.9) on the probability scale, then transformed
-#              to the logit scale. Covers realistic baseline accuracies in
-#              cognitive experiments (2-AFC to 4-AFC).
-#   sd_b0    = 0.75 (informed by Goal 1)
-#
-# REDUCTIONS vs. original 1,620-condition grid:
-#   link:     fixed to logit (probit analogous by matched prior principle)
-#   sd_b1:    dropped 1.00 (too diffuse, established in Goal 1)
-#   true_b1:  covers realistic cognitive psychology range: 2-10 pp typical
-#             effects (~b1 0.05-0.20), up to ~22 pp for set-size effects (b1 0.50)
-#   n_trials: dropped 100 (monotone improvement; extrapolates from 20/50)
-#
-# OUTPUT:
-#   output/Simulation_BFCalibration/BFCalib_Cond_*.rds
-#   output/res_bf_calibration.rds
-#
-# RUNTIME: Very long (~hours). Run on compute server with many cores.
-#          Test with smoke_test = TRUE before full run.
-# ==============================================================================
 
 library(SimDesign)
 library(brms)
@@ -52,7 +8,6 @@ library(here)
 
 source(here("R", "link_functions.R"))
 source(here("R", "bf_helpers.R"))
-
 
 # ------------------------------------------------------------------------------
 # Design grid
@@ -66,19 +21,11 @@ Design <- createDesign(
   n_subjects = c(30, 60, 100),
   n_trials   = c(20, 50)
 )
-# Total: 2 x 3 x 2 x 5 x 3 x 2 = 360 conditions
-
 
 # ------------------------------------------------------------------------------
 # SimDesign functions
 # ------------------------------------------------------------------------------
 
-#' Generate: simulate a binomial dataset with subject-level random intercepts
-#'
-#' @param condition  One row of Design.
-#' @param fixed_objects List with: b0_range (numeric[2]), sd_b0 (numeric),
-#'   true_sd_re (numeric) between-subject SD on the logit scale.
-#' @return data.frame with columns subject_id, y, n, condition, true_p0.
 Generate <- function(condition, fixed_objects = NULL) {
   Attach(condition)
 
@@ -105,12 +52,6 @@ Generate <- function(condition, fixed_objects = NULL) {
   )
 }
 
-#' Analyse: fit brms model with random intercept and compute BF10
-#'
-#' @param condition  One row of Design.
-#' @param dat        Output of Generate.
-#' @param fixed_objects List with: sd_b0 (numeric), sd_prior_re (character).
-#' @return Named numeric vector with BF10, BF01, and true_p0.
 Analyse <- function(condition, dat, fixed_objects = NULL) {
   Attach(condition)
   sd_b0       <- fixed_objects$sd_b0
@@ -133,12 +74,6 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
   c(BF10 = bf10, BF01 = 1 / bf10, true_p0 = true_p0)
 }
 
-#' Summarise: compute power and specificity metrics
-#'
-#' @param condition  One row of Design.
-#' @param results    Matrix (replications x 3) with BF10, BF01, true_p0 columns.
-#' @param fixed_objects Unused.
-#' @return Named numeric vector of summary statistics.
 Summarise <- function(condition, results, fixed_objects = NULL) {
   bf10 <- results[, "BF10"]
   bf01 <- results[, "BF01"]
@@ -154,7 +89,6 @@ Summarise <- function(condition, results, fixed_objects = NULL) {
     mean_true_p0  = mean(results[, "true_p0"], na.rm = TRUE)
   )
 }
-
 
 # ------------------------------------------------------------------------------
 # Run simulation

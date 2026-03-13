@@ -1,21 +1,6 @@
 # ==============================================================================
 # Script 04b: Post-process BF Calibration RE Results
 # ==============================================================================
-#
-# PURPOSE:
-#   Load per-condition results from SimDesign (script 03b), combine into a
-#   clean data frame, and save for use in the BF calibration RE Quarto report.
-#   Additionally, compute Bayesian posteriors (Beta-Binomial and
-#   Dirichlet-Multinomial) for detection-rate uncertainty.
-#
-# INPUT:  output/res_bf_calibration_re.rds
-#         output/Simulation_BFCalibration_RE/BFCalib_RE_Cond-{i}.rds
-# OUTPUT: output/bf_calibration_re_summaries.rds
-#         (tidy data frame, one row per condition)
-#         output/bf_calibration_re_posteriors.rds
-#         (one row per condition x threshold)
-#
-# ==============================================================================
 
 library(SimDesign)
 library(dplyr)

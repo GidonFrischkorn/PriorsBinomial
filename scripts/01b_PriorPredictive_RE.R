@@ -1,47 +1,6 @@
 # ==============================================================================
 # Script 01b: Prior Predictive Distribution — Random Effects Hyperprior Comparison
 # ==============================================================================
-#
-# PURPOSE:
-#   Extend Goal 1 to a hierarchical (random-effects) model. Instead of fixing
-#   the between-subject SD, we draw it from each candidate hyperprior. This
-#   gives the true hierarchical prior predictive:
-#
-#     sd_re  ~ hyperprior          (one per "study")
-#     u_i    ~ Normal(0, sd_re)    (one per subject)
-#     b0, b1 ~ fixed-effects priors
-#     p_ij   = g^{-1}(b0 + u_i ± (b1 + v_i))
-#
-#   We compare four hyperprior families at five scale levels (matched by mean)
-#   in a fully crossed design to disentangle the effect of distribution family
-#   from the effect of scale. The same hyperprior family and scale is used for
-#   both sd_re and sd_slope (when re_structure = "intercept_slope").
-#
-#   Fixed-effects priors are fixed to the recommended values from script 01:
-#   logit link, Logistic(0, 0.75) intercept, Logistic(0, 0.25) effect.
-#
-# DESIGN (40 conditions x 10 reps):
-#   hp_family    in {"exponential", "gamma", "half_normal", "half_t"}
-#   hp_mean      in {0.15, 0.25, 0.50, 1.00, 2.50}
-#   re_structure in {"intercept_only", "intercept_slope"}
-#
-# FIXED:
-#   link       = "logit"
-#   dist_b0    = "logistic",  sd_b0 = 0.75
-#   dist_b1    = "logistic",  sd_b1 = 0.25
-#   n_studies  = 1000     (study-level prior draws per replication)
-#   n_subjects = 50       (subjects per study — needed for within-study stats)
-#
-# HYPERPRIOR PARAMETERISATION (all matched by mean):
-#   exponential:  Exponential(rate = 1/mean)
-#   gamma:        Gamma(shape = 2, rate = 2/mean)
-#   half_normal:  |Normal(0, sigma)| where sigma = mean / sqrt(2/pi)
-#   half_t:       |t(df=3)| * scale where scale = mean / (2*sqrt(3)/pi)
-#
-# OUTPUT:
-#   output/Simulation_PriorPredictive_RE/PriorPred_RE_Cond_*.rds
-#   output/res_prior_predictive_re.rds
-# ==============================================================================
 
 library(SimDesign)
 library(here)
@@ -49,22 +8,6 @@ library(here)
 source(here("R", "link_functions.R"))
 source(here("R", "prior_sampling.R"))
 
-
-# ------------------------------------------------------------------------------
-# Helper: draw sd values from a named hyperprior family at a target mean
-# ------------------------------------------------------------------------------
-
-#' Draw random-effect SDs from a candidate hyperprior
-#'
-#' All four families are parameterised so that their expected value equals
-#' \code{hp_mean}. This allows a fair comparison across families at matched
-#' scale.
-#'
-#' @param n         Integer. Number of draws.
-#' @param hp_family Character. One of "exponential", "gamma", "half_normal",
-#'                  "half_t".
-#' @param hp_mean   Numeric. Target mean of the hyperprior distribution.
-#' @return Numeric vector of length n, all >= 0.
 sample_sd_hyperprior <- function(n, hp_family, hp_mean) {
   switch(hp_family,
     exponential = rexp(n, rate = 1 / hp_mean),
@@ -85,23 +28,11 @@ Design <- createDesign(
   hp_mean      = c(0.15, 0.25, 0.50, 1.00, 2.50),
   re_structure = c("intercept_only", "intercept_slope")
 )
-# Total: 4 x 5 x 2 = 40 conditions
-
 
 # ------------------------------------------------------------------------------
 # SimDesign functions
 # ------------------------------------------------------------------------------
 
-#' Generate: draw hierarchical prior predictive dataset
-#'
-#' For each of n_studies "studies", draws study-level parameters (b0, b1,
-#' sd_re) and subject-level random effects (u_i, and v_i if intercept_slope).
-#'
-#' @param condition    One row of Design.
-#' @param fixed_objects List with: n_studies, n_subjects, dist_b0, sd_b0,
-#'                     dist_b1, sd_b1.
-#' @return data.frame with n_studies * n_subjects rows and columns:
-#'   study_id, b0, b1, sd_re, sd_slope, u, v.
 Generate <- function(condition, fixed_objects = NULL) {
   Attach(condition)
   n_studies  <- fixed_objects$n_studies
@@ -151,19 +82,10 @@ Generate <- function(condition, fixed_objects = NULL) {
   )
 }
 
-
-#' Analyse: compute marginal and within-study prior predictive summaries
-#'
-#' @param condition    One row of Design.
-#' @param dat          Output of Generate.
-#' @param fixed_objects List with: n_subjects (integer).
-#' @return Named numeric vector of summary statistics.
 Analyse <- function(condition, dat, fixed_objects = NULL) {
   n_subjects <- fixed_objects$n_subjects
   g_inv      <- function(x) apply_inverse_link(x, link = "logit")
 
-  # Subject-level implied probabilities
-  # Baseline (intercept prior only, no effect)
   p0_subj     <- g_inv(dat$b0 + dat$u)
 
   # Condition-specific (marginal subject-level effect)
@@ -172,8 +94,6 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
   p_pos_subj  <- g_inv(linear_pos)
   p_neg_subj  <- g_inv(linear_neg)
   delta_p_subj <- p_pos_subj - p_neg_subj
-
-  # ── Marginal stats (over all n_studies × n_subjects rows) ──────────────────
 
   # Floor/ceiling of baseline: P(p0 < 0.05 or p0 > 0.95)
   prob_floor_ceiling <- mean(p0_subj < 0.05 | p0_subj > 0.95)
@@ -192,18 +112,12 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
   prob_dp_gt30 <- mean(adp > 0.30)
   prob_dp_gt50 <- mean(adp > 0.50)
 
-  # ── Hyperprior-level stats (one value per study, then averaged) ────────────
-
   # Unique sd_re per study (first row of each study is sufficient)
   study_rows    <- seq(1, nrow(dat), by = n_subjects)
   sd_re_studies <- dat$sd_re[study_rows]
   mean_sd_re    <- mean(sd_re_studies)
   p90_sd_re     <- as.numeric(quantile(sd_re_studies, 0.90))
 
-  # Within-study SD of delta_p (effect heterogeneity across subjects)
-  # For intercept_only, this should be 0 because v = 0 but u shifts b0 only,
-  # so delta_p = g_inv(b0+u+b1) - g_inv(b0+u-b1) still varies across subjects
-  # via u. For intercept_slope, v additionally varies b1 per subject.
   study_id        <- dat$study_id
   sd_dp_by_study  <- tapply(delta_p_subj, study_id, sd)
   mean_sd_dp      <- mean(sd_dp_by_study)
@@ -234,13 +148,6 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
   )
 }
 
-
-#' Summarise: average statistics across replications
-#'
-#' @param condition    One row of Design.
-#' @param results      Matrix (replications x statistics).
-#' @param fixed_objects Unused.
-#' @return Named numeric vector (column means across replications).
 Summarise <- function(condition, results, fixed_objects = NULL) {
   colMeans(results)
 }
@@ -249,8 +156,6 @@ Summarise <- function(condition, results, fixed_objects = NULL) {
 # ------------------------------------------------------------------------------
 # Run simulation
 # ------------------------------------------------------------------------------
-
-smoke_test <- FALSE
 
 out_file <- here("output", "res_prior_predictive_re.rds")
 
@@ -297,7 +202,6 @@ if (smoke_test) {
   )
   save(res, file = out_file)
   message("Simulation complete. Results saved to: ", out_file)
-
 } else {
   message("Results file already exists. Load with: load('", out_file, "')")
 }

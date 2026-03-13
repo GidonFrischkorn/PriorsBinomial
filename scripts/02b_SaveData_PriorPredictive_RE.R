@@ -1,16 +1,6 @@
 # ==============================================================================
 # Script 02b: Post-process RE Prior Predictive Simulation Results
 # ==============================================================================
-#
-# PURPOSE:
-#   Load per-condition results from SimDesign (script 01b), combine into a
-#   clean tidy data frame, and re-simulate subject-level draws for
-#   visualisation in the Quarto report.
-#
-# INPUT:  output/res_prior_predictive_re.rds
-# OUTPUT: output/prior_predictive_re_summaries.rds  (tidy summaries, 40 rows)
-#         output/prior_predictive_re_draws.rds       (long-format subject draws)
-# ==============================================================================
 
 library(SimDesign)
 library(dplyr)
@@ -19,7 +9,6 @@ library(here)
 
 source(here("R", "link_functions.R"))
 source(here("R", "prior_sampling.R"))
-
 
 # ------------------------------------------------------------------------------
 # Helper (must match 01b)
@@ -34,7 +23,6 @@ sample_sd_hyperprior <- function(n, hp_family, hp_mean) {
     stop("Unknown hp_family: ", hp_family)
   )
 }
-
 
 # ------------------------------------------------------------------------------
 # Load SimDesign results

@@ -1,62 +1,6 @@
 # ==============================================================================
 # Script 03b: BF Calibration — Within-Subjects with Random Intercepts & Slopes
 # ==============================================================================
-#
-# PURPOSE:
-#   Extend Goal 2 to a within-subjects design. Each subject contributes one
-#   binomial observation per condition. Adds (1 + condition | subject_id) to
-#   the brms model: subjects vary both in baseline probability (random
-#   intercept) and in how strongly condition affects them (random slope).
-#   Varies the SD prior for both random effects to assess its effect on BF
-#   calibration (power and specificity).
-#
-# MODEL:
-#   Within-subjects, sum-to-zero contrast x in {+1, -1}.
-#   y_{i,c} ~ Binomial(n_trials, p_{i,c})
-#   g(p_{i,c}) = (b0 + u_i) + (b1 + v_i) * x_c
-#   u_i ~ Normal(0, sigma_u),  v_i ~ Normal(0, sigma_v)
-#   corr(u_i, v_i) ~ LKJ(1)  [uniform, brms default]
-#   H1: b0 ~ intercept_prior, b1 ~ effect_prior,
-#       sigma_u ~ sd_prior_re, sigma_v ~ sd_prior_re
-#   H0: Savage-Dickey at b1 = 0 (identical RE structure as H1)
-#
-# DESIGN (90 conditions x 100 reps):
-#   sd_prior_re in {"default", "gamma", "exponential"}
-#   true_b1     in {0.00, 0.05, 0.10, 0.20, 0.50}
-#   n_subjects  in {30, 60, 100}
-#   n_trials    in {20, 50}
-#
-# FIXED:
-#   link        = "logit"    (matched prior from Goal 1)
-#   dist_b0     = "logistic" (matched intercept prior for logit link)
-#   dist_b1     = "normal"   (recommended from script 03)
-#   sd_b1       = 0.25       (recommended from script 03)
-#   b0_range    = c(0.4, 0.9): true_b0 sampled per replication from
-#                Uniform(0.4, 0.9) on the probability scale (same as script 03)
-#   sd_b0       = 0.75       (recommended from Goal 1)
-#   true_sd_re  = 0.25       (realistic between-subject SD on logit scale,
-#                             ~6% between-subject SD in probability at p=0.5)
-#   true_sd_slope = 0.15     (realistic between-subject slope SD on logit scale;
-#                             smaller than intercept SD — subjects vary less in
-#                             their condition sensitivity than in baseline)
-#
-# REDUCTIONS vs. initial 432-condition grid:
-#   dist_b1, sd_b1 fixed to recommended values from 03 — the RE simulation
-#   focuses on the SD prior comparison; effect prior variation is already
-#   covered in script 03.
-#
-# SD PRIOR LEVELS (on logit/probit scale):
-#   "default"     — student_t(3, 0, 2.5): brms default, very wide
-#   "gamma"       — gamma(2, 4): mean 0.5, P(sd < 0.5) ~= 0.71
-#   "exponential" — exponential(4): mean 0.25, P(sd < 0.5) ~= 0.86
-#
-# OUTPUT:
-#   output/Simulation_BFCalibration_RE/BFCalib_RE_Cond_*.rds
-#   output/res_bf_calibration_re.rds
-#
-# RUNTIME: Long. Run on compute server with many cores.
-#          Test with smoke_test = TRUE before full run.
-# ==============================================================================
 
 library(SimDesign)
 library(brms)
@@ -64,7 +8,6 @@ library(here)
 
 source(here("R", "link_functions.R"))
 source(here("R", "bf_helpers.R"))
-
 
 # ------------------------------------------------------------------------------
 # Design grid
@@ -76,25 +19,11 @@ Design <- createDesign(
   n_subjects  = c(30, 60, 100),
   n_trials    = c(20, 50)
 )
-# Total: 3 x 5 x 3 x 2 = 90 conditions
-
 
 # ------------------------------------------------------------------------------
 # SimDesign functions
 # ------------------------------------------------------------------------------
 
-#' Generate: simulate a within-subjects binomial dataset with random intercepts
-#' and random slopes
-#'
-#' Each subject contributes two observations (one per condition). A subject-
-#' level random intercept u_i ~ Normal(0, true_sd_re) models between-subject
-#' variability in baseline probability; a random slope v_i ~ Normal(0,
-#' true_sd_slope) models between-subject variability in the condition effect.
-#'
-#' @param condition    One row of Design.
-#' @param fixed_objects List with: b0_range (numeric[2]), sd_b0 (numeric),
-#'                    true_sd_re (numeric), true_sd_slope (numeric).
-#' @return data.frame with columns subject_id, y, n, condition, true_p0.
 Generate <- function(condition, fixed_objects = NULL) {
   Attach(condition)
   true_p0       <- runif(1, fixed_objects$b0_range[1], fixed_objects$b0_range[2])
@@ -119,14 +48,6 @@ Generate <- function(condition, fixed_objects = NULL) {
   )
 }
 
-
-#' Analyse: fit brms RE model with random slopes and compute BF10 via
-#' Savage-Dickey ratio
-#'
-#' @param condition    One row of Design.
-#' @param dat          Output of Generate.
-#' @param fixed_objects List with: sd_b0 (numeric).
-#' @return Named numeric vector with BF10, BF01, and true_p0.
 Analyse <- function(condition, dat, fixed_objects = NULL) {
   Attach(condition)
   sd_b0   <- fixed_objects$sd_b0
@@ -149,13 +70,6 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
   c(BF10 = bf10, BF01 = 1 / bf10, true_p0 = true_p0)
 }
 
-
-#' Summarise: compute power and specificity metrics
-#'
-#' @param condition    One row of Design.
-#' @param results      Matrix (replications x 3) with BF10, BF01, true_p0 columns.
-#' @param fixed_objects Unused.
-#' @return Named numeric vector of summary statistics.
 Summarise <- function(condition, results, fixed_objects = NULL) {
   bf10    <- results[, "BF10"]
   bf01    <- results[, "BF01"]

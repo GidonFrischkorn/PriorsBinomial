@@ -1,17 +1,6 @@
 # ==============================================================================
 # Script 02: Post-process Prior Predictive Simulation Results
 # ==============================================================================
-#
-# PURPOSE:
-#   Load per-condition results from SimDesign, combine into a clean data frame,
-#   and save for use in the Quarto report.
-#
-# INPUT:  output/res_prior_predictive.rds
-#         output/Simulation_PriorPredictive/PriorPred_Cond_*.rds
-# OUTPUT: output/prior_predictive_summaries.rds  (tidy data frame, one row per condition)
-#         output/prior_predictive_draws.rds       (long-format draws for ridge plots)
-#
-# ==============================================================================
 
 library(SimDesign)
 library(dplyr)
@@ -28,9 +17,6 @@ source(here("R", "prior_sampling.R"))
 
 load(here("output", "res_prior_predictive.rds"))
 
-# In current SimDesign, all results are stored directly in res alongside the
-# design columns (SimExtract(res, "results") returns NULL in newer versions).
-# Drop the SimDesign bookkeeping columns to get a clean summaries table.
 simdesign_meta <- c("REPLICATIONS", "SIM_TIME", "RAM_USED", "SEED", "COMPLETED")
 summaries <- res |>
   select(-any_of(simdesign_meta))
@@ -44,8 +30,6 @@ message("Saved: output/prior_predictive_summaries.rds  (", nrow(summaries), " co
 # (Sample a subset of conditions for visualization — not all 720)
 # ------------------------------------------------------------------------------
 
-# Focus conditions for Figure 1 (p_intercept ridges): vary sd_b0, all dist_b0,
-# fix sd_b1 = 0.25 and dist_b1 = "logistic"
 fig1_conditions <- expand.grid(
   link    = c("logit", "probit"),
   dist_b0 = c("logistic", "normal", "cauchy"),
@@ -55,9 +39,6 @@ fig1_conditions <- expand.grid(
   stringsAsFactors = FALSE
 )
 
-# Focus conditions for Figure 2 (delta_p ridges): vary sd_b1, all dist_b1,
-# fix sd_b0 = 0.75 and use matched intercept prior per link
-# (logistic for logit, normal for probit)
 fig2_conditions <- bind_rows(
   expand.grid(
     link    = "logit",

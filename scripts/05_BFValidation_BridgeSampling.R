@@ -1,43 +1,6 @@
 # ==============================================================================
 # Script 05: Validate Savage-Dickey BFs Against Bridge Sampling
 # ==============================================================================
-#
-# PURPOSE:
-#   Run both Savage-Dickey density ratio and bridge sampling on the same
-#   simulated datasets to verify that the two methods agree. This is a
-#   targeted validation on a subset of conditions — not a full replication.
-#
-# MOTIVATION:
-#   The main BF calibration (Script 03) uses the Savage-Dickey (SD) ratio,
-#   which is a point evaluation at b1 = 0. Bridge sampling (BS) integrates
-#   over the entire parameter space. If the encompassing prior condition
-#   holds and the KDE estimate is accurate, both methods should agree.
-#   However, KDE noise at b1 = 0 (especially when the posterior is far from
-#   zero) and the density-at-zero mechanism driving specificity differences
-#   could create discrepancies. This script quantifies any such discrepancy.
-#
-# DESIGN (18 conditions x 100 reps):
-#   dist_b1     in {normal, logistic, cauchy}
-#   sd_b1       in {0.25, 0.50}
-#   true_b1     in {0.00, 0.10, 0.50}   [null, small, large]
-#
-# FIXED:
-#   dist_b0    = "logistic"  (matched prior)
-#   n_subjects = 60
-#   n_trials   = 50
-#   link       = "logit"
-#   sd_b0      = 0.75
-#   sd_prior_re = "exponential"
-#   b0_range   = c(0.4, 0.9)
-#   true_sd_re = 0.25
-#
-# OUTPUT:
-#   output/Simulation_BFValidation/BFValid_Cond-{i}.rds
-#   output/res_bf_validation.rds
-#
-# RUNTIME: ~12-24 hours on compute server (bridge sampling requires 2 model
-#          fits per replication). Test with smoke_test = TRUE first.
-# ==============================================================================
 
 library(SimDesign)
 library(brms)
@@ -46,7 +9,6 @@ library(here)
 
 source(here("R", "link_functions.R"))
 source(here("R", "bf_helpers.R"))
-
 
 # ------------------------------------------------------------------------------
 # Design grid (targeted subset)
@@ -57,8 +19,6 @@ Design <- createDesign(
   sd_b1      = c(0.25, 0.50),
   true_b1    = c(0.00, 0.10, 0.50)
 )
-# Total: 3 x 2 x 3 = 18 conditions
-
 
 # ------------------------------------------------------------------------------
 # SimDesign functions
@@ -229,10 +189,6 @@ if (smoke_test) {
 } else if (!file.exists(out_file)) {
 
   # --- Parallel cluster setup ---
-  # SimDesign parallelism failed previously because PSOCK workers don't
-
-  # inherit sourced helper functions. Fix: create the cluster manually,
-  # source the helper files on each worker, then pass via cl argument.
   ncores_total <- parallel::detectCores() - 2
   ncores_brms  <- 2L                                   # cores per brms fit
   ncores_sim   <- max(1L, floor(ncores_total / ncores_brms))
