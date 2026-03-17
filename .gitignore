@@ -21,3 +21,4 @@ reports/*.fff
 
 # OS
 .DS_Store
+.positai

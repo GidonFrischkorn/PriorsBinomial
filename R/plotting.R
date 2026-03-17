@@ -316,3 +316,107 @@ plot_misfit_heatmap <- function(summaries) {
     prior_theme() +
     ggplot2::theme(legend.position = "right")
 }
+
+
+# ==============================================================================
+# Figure S1: BF Validation scatter plot (Savage-Dickey vs Bridge Sampling)
+# ==============================================================================
+
+#' Scatter plot comparing Savage-Dickey and Bridge Sampling Bayes Factors
+#'
+#' Each point is one simulation replication. The identity line marks perfect
+#' agreement between methods. Per-panel Pearson correlations are annotated.
+#'
+#' @param bf_data Data frame with columns: log10_SD, log10_BS, dist_b1,
+#'   true_b1_label, sd_b1_label (one row per replication).
+#' @return A ggplot2 object.
+plot_bf_validation_scatter <- function(bf_data) {
+
+  # per-panel correlation annotation
+  cor_df <- bf_data |>
+    dplyr::summarise(
+      r     = stats::cor(log10_SD, log10_BS, use = "complete.obs"),
+      label = sprintf("italic(r) == %.2f", r),
+      .by   = c(sd_b1_label, true_b1_label)
+    )
+
+  ggplot2::ggplot(bf_data, ggplot2::aes(x = log10_SD, y = log10_BS,
+                                         colour = dist_b1)) +
+    ggplot2::geom_abline(intercept = 0, slope = 1,
+                         colour = "grey50", linewidth = 0.6) +
+    ggplot2::geom_hline(yintercept = c(log10(3), log10(1/3), 0),
+                        linetype = "dashed", colour = "grey60",
+                        linewidth = 0.4) +
+    ggplot2::geom_vline(xintercept = c(log10(3), log10(1/3), 0),
+                        linetype = "dashed", colour = "grey60",
+                        linewidth = 0.4) +
+    ggplot2::geom_point(alpha = 0.5, size = 1.5) +
+    ggplot2::geom_text(
+      data    = cor_df,
+      ggplot2::aes(x = -Inf, y = Inf, label = label),
+      hjust = -0.1, vjust = 1.5, size = 4, colour = "black",
+      parse = TRUE, inherit.aes = FALSE
+    ) +
+    ggplot2::facet_grid(
+      sd_b1_label ~ true_b1_label,
+      labeller = ggplot2::label_parsed,
+      scales   = "free"
+    ) +
+    ggplot2::scale_colour_viridis_d("Prior family", option = "D", end = 0.85) +
+    ggplot2::labs(
+      x = expression(log[10](BF[10]^{SD})),
+      y = expression(log[10](BF[10]^{BS}))
+    ) +
+    prior_theme()
+}
+
+
+# ==============================================================================
+# Figure S2: Bland-Altman plot (method discrepancy vs evidence strength)
+# ==============================================================================
+
+#' Bland-Altman plot for Savage-Dickey vs Bridge Sampling Bayes Factors
+#'
+#' X-axis shows average evidence strength, y-axis shows the discrepancy
+#' (SD minus BS on log10 scale). Per-panel mean bias is shown as a dashed
+#' red line.
+#'
+#' @param bf_data Data frame with columns: mean_log10, diff_log10, dist_b1,
+#'   sd_b1_factor, true_b1_label (one row per replication).
+#' @return A ggplot2 object.
+plot_bf_validation_bland_altman <- function(bf_data) {
+
+  # per-panel mean bias
+  bias_df <- bf_data |>
+    dplyr::summarise(
+      mean_bias = mean(diff_log10, na.rm = TRUE),
+      .by = true_b1_label
+    )
+
+  ggplot2::ggplot(bf_data, ggplot2::aes(x = mean_log10, y = diff_log10,
+                                         colour = dist_b1,
+                                         shape  = sd_b1_factor)) +
+    ggplot2::geom_hline(yintercept = 0, colour = "grey40", linewidth = 0.5) +
+    ggplot2::geom_hline(
+      data     = bias_df,
+      ggplot2::aes(yintercept = mean_bias),
+      linetype = "dashed", colour = "red", linewidth = 0.4,
+      inherit.aes = FALSE
+    ) +
+    ggplot2::geom_point(alpha = 0.5, size = 1.5) +
+    ggplot2::facet_wrap(
+      ~ true_b1_label, ncol = 3,
+      labeller = ggplot2::label_parsed,
+      scales   = "free"
+    ) +
+    ggplot2::scale_colour_viridis_d("Prior family", option = "D", end = 0.85) +
+    ggplot2::scale_shape_manual(
+      expression(sd[b[1]]),
+      values = c("0.25" = 16, "0.5" = 17)
+    ) +
+    ggplot2::labs(
+      x = expression((log[10](BF[10]^{SD}) + log[10](BF[10]^{BS})) / 2),
+      y = expression(log[10](BF[10]^{SD}) - log[10](BF[10]^{BS}))
+    ) +
+    prior_theme()
+}

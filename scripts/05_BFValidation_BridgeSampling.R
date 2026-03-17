@@ -2,6 +2,10 @@
 # Script 05: Validate Savage-Dickey BFs Against Bridge Sampling
 # ==============================================================================
 
+# Prevent thread exhaustion: each Stan chain uses only 1 OpenMP thread.
+# Without this, SimDesign workers × brms chains × OMP threads overwhelms macOS.
+Sys.setenv(OMP_NUM_THREADS = "1")
+
 library(SimDesign)
 library(brms)
 library(bridgesampling)
@@ -200,6 +204,7 @@ if (smoke_test) {
   cl <- parallel::makeCluster(ncores_sim)
   parallel::clusterExport(cl, c("src_link", "src_bf"), envir = environment())
   parallel::clusterEvalQ(cl, {
+    Sys.setenv(OMP_NUM_THREADS = "1")
     source(src_link)
     source(src_bf)
   })
