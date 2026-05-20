@@ -1,0 +1,146 @@
+---
+title: "Supplementary Materials: How to Set Priors for Hypothesis Testing in Generalized Linear Models"
+shorttitle: "Supplement — Priors for Hypothesis Testing in GLMs"
+author:
+  - name: Gidon T. Frischkorn
+    corresponding: true
+    email: gidon.frischkorn@psychologie.uzh.ch
+    affiliations:
+      - name: University of Zurich
+      - name: University of Lucerne
+  - name: Joscha Dutli
+    affiliations:
+      - name: University of Zurich
+  - name: Philipp Musfeld
+    affiliations:
+      - name: University of Amsterdam
+      - name: University of Zurich
+  - name: Klaus Oberauer
+    affiliations:
+      - name: University of Zurich
+format:
+  apaquarto-docx: default
+  apaquarto-html: default
+  apaquarto-pdf:
+    documentmode: man
+bibliography:
+  - references.bib
+csl: apa.csl
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggridges)
+library(viridis)
+library(scales)
+library(here)
+library(knitr)
+
+source(here("R", "link_functions.R"))
+source(here("R", "prior_sampling.R"))
+source(here("R", "plotting.R"))
+
+# Goal 1: Prior predictive results
+summaries_pp  <- readRDS(here("output", "prior_predictive_summaries.rds"))
+draws_long    <- readRDS(here("output", "prior_predictive_draws.rds"))
+
+# RE prior predictive results
+re_pp_summaries <- tryCatch(
+  readRDS(here("output", "prior_predictive_re_summaries.rds")),
+  error = function(e) NULL
+)
+re_pp_draws <- tryCatch(
+  readRDS(here("output", "prior_predictive_re_draws.rds")),
+  error = function(e) NULL
+)
+re_pp_available <- !is.null(re_pp_summaries) && !is.null(re_pp_draws)
+```
+
+## Full Simulation Design
+
+### Prior Predictive Simulation (Step 2)
+
+The prior predictive simulation crossed the following factors:
+
+- **Link function**: logit, probit (2 levels)
+- **Intercept prior family** ($b_0$): Normal, Logistic, Cauchy (3 levels)
+- **Intercept prior SD** ($\mathrm{sd}_{b_0}$): 0.50, 0.75, 1.00, 1.50 (4 levels)
+- **Effect prior family** ($b_1$): Normal, Logistic, Cauchy (3 levels)
+- **Effect prior SD** ($\mathrm{sd}_{b_1}$): 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 2.00 (10 levels)
+
+This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each condition, 10 replications of 10,000 draws were performed using the SimDesign package.
+
+### Bayes Factor Calibration (Step 3)
+
+The BF calibration crossed:
+
+- **Intercept prior family**: Logistic, Normal (2 levels; both at $\mathrm{sd}_{b_0} = 0.75$)
+- **Effect prior family**: Normal, Logistic, Cauchy (3 levels)
+- **Effect prior SD**: 0.25, 0.50 (2 levels)
+- **True effect** ($b_1$): 0, 0.05, 0.10, 0.20, 0.50 (5 levels)
+- **Number of subjects**: 30, 60, 100 (3 levels)
+- **Trials per subject**: 20, 50 (2 levels)
+
+This yields $2 \times 3 \times 2 \times 5 \times 3 \times 2 = 360$ conditions with 100 replications each.
+
+A separate random-effects simulation held fixed-effects priors at the recommended matched configuration and varied only the hyperprior: Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4), yielding 90 conditions with 100 replications each.
+
+### Density Formulas for Analytical Overlays
+
+For the logit link with a $\mathrm{Logistic}(0, s)$ prior on $b_0$: $f(p) = f_{\mathrm{Logis}}(\mathrm{logit}(p), 0, s) / [p(1-p)]$. At $s = 1$, the logistic density and the Jacobian $p(1-p)$ cancel, giving $f(p) = 1$. For the probit link with a $\mathrm{Normal}(0, \sigma)$ prior: $f(p) = \phi(\mathrm{probit}(p)/\sigma) / [\sigma \cdot \phi(\mathrm{probit}(p))]$, where $\phi$ denotes the standard normal density. At $\sigma = 1$, the normal densities cancel, again yielding $f(p) = 1$.
+
+
+## Supplementary Figures
+
+```{r}
+#| label: fig-S1-floor-ceiling
+#| fig-cap: "Proportion of prior predictive mass in the floor/ceiling region
+#|   (p < 0.05 or p > 0.95) as a function of intercept prior SD and family.
+#|   The matched prior at $\\mathrm{sd}_{b_0} = 1.0$ places exactly 10% in this region
+#|   (2 x 0.05 = 0.10), confirming the uniform result. At $\\mathrm{sd}_{b_0} = 0.75$,
+#|   floor/ceiling mass drops below 10% for both matched priors."
+#| fig-height: 6
+#| fig-width: 10
+
+plot_floor_ceiling_heatmap(summaries_pp)
+```
+
+```{r}
+#| label: fig-S2-re-delta-p
+#| fig-cap: "Effect size heterogeneity by hyperprior family and scale for the
+#|   intercept + slope model. At matched scale, all families produce similar
+#|   effect heterogeneity. Dotted lines mark +/-0.10, +/-0.20, +/-0.30."
+#| fig-height: 8
+#| fig-width: 12
+#| eval: !expr re_pp_available
+
+re_pp_draws |>
+  filter(re_structure == "Intercept + slope") |>
+  group_by(hp_family, hp_mean) |>
+  slice_sample(n = 10000) |>
+  ungroup() |>
+  mutate(hp_mean_label = paste0("mu == ", hp_mean)) |>
+  ggplot(aes(x = delta_p, y = hp_family,
+             fill = hp_family, colour = hp_family)) +
+  geom_density_ridges(stat = "binline", bins = 80,
+                      alpha = 0.5, scale = 0.9) +
+  geom_vline(xintercept = 0, linewidth = 0.5, colour = "grey20") +
+  geom_vline(xintercept = c(-0.30, -0.20, -0.10, 0.10, 0.20, 0.30),
+             linetype = "dotted", linewidth = 0.5, colour = "grey40") +
+  facet_wrap(~ hp_mean_label, ncol = 2,
+             labeller = label_parsed) +
+  scale_fill_viridis_d(option = "D", end = 0.85, guide = "none") +
+  scale_colour_viridis_d(option = "D", end = 0.85, guide = "none") +
+  scale_x_continuous(
+    expression(delta * italic(p)),
+    limits = c(-1, 1), breaks = seq(-1, 1, 0.25)
+  ) +
+  scale_y_discrete("Family") +
+  prior_theme()
+```
+

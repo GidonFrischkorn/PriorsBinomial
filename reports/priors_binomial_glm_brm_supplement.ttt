@@ -1,0 +1,186 @@
+\begin{table*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+
+{\caption{{Implied SD of the unit-information g-prior (\(g = 1\)) for a
+balanced two-group binomial GLM across combinations of sample size and
+baseline probability. The matched Logistic(0, 0.25) prior always has SD
+= 0.25, regardless of design. The g-prior SD varies substantially across
+these scenarios: it shrinks as \(n\) grows and is smallest near
+\(p_0 = 0.50\).}{\label{tbl-gprior-scales}}}
+\vspace{-20pt}}
+
+\begin{longtable}[]{@{}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.3188}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.0870}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.3043}}
+  >{\raggedleft\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2899}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedleft
+\(n_{\text{subjects}}\)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\(p_0\)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+G-prior SD (\(g = 1\))
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Matched Logistic SD
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+30 & 0.3 & 0.282 & 0.25 \\
+60 & 0.3 & 0.199 & 0.25 \\
+100 & 0.3 & 0.154 & 0.25 \\
+30 & 0.5 & 0.258 & 0.25 \\
+60 & 0.5 & 0.183 & 0.25 \\
+100 & 0.5 & 0.141 & 0.25 \\
+30 & 0.7 & 0.282 & 0.25 \\
+60 & 0.7 & 0.199 & 0.25 \\
+100 & 0.7 & 0.154 & 0.25 \\
+\end{longtable}
+
+\end{table*}
+\efloatseparator
+ 
+\begin{table*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+
+{\caption{{Comparison of matched priors, fixed-\(g\) priors, and
+mixture-of-\(g\) priors against formal Bayesian model comparison
+criteria. References: information paradox and mixture-of-\(g\)
+(\citeproc{ref-liang2008}{Liang et al., 2008}); GLM extension
+(\citeproc{ref-bove2011}{Bové \& Held, 2011};
+\citeproc{ref-liclyde2018}{Li \& Clyde, 2018}); criteria framework
+(\citeproc{ref-bayarri2012}{Bayarri et al.,
+2012}).}{\label{tbl-bayarri-comparison}}}
+\vspace{-20pt}}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.1833}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.3333}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Criterion
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Matched prior
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+G-prior (fixed \(g\))
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Mixture-of-\(g\)
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Information consistency & Yes & No (information paradox) & Yes \\
+Model selection consistency & Yes & No (Bartlett's paradox) & Yes \\
+Measurement invariance & Yes (sum-to-zero coding) & Design-dependent &
+Design-dependent \\
+Predictive matching & Yes (by construction via Step 2) & Not directly
+accessible & Not directly accessible \\
+Available in \texttt{brms}/Stan & Yes & No & No \\
+\end{longtable}
+
+\end{table*}
+\efloatseparator
+ 
+\begin{table*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+
+{\caption{{Detection rates (\(P(\mathrm{BF}_{10} > 3)\)) for the matched
+Logistic(0, 0.25) effect prior across all simulation conditions. Columns
+show results for each combination of sample size (\(n\)) and trials per
+subject (\(T\)). Rows correspond to true effect sizes on the logit
+scale. Under the null (\(b_1 = 0\)), rates reflect false-positive
+evidence for \(H_1\).}{\label{tbl-bf-power}}}
+\vspace{-20pt}}
+
+\textbar True \(b_1\) \textbar{} n=30 T=20\textbar{} n=60 T=20\textbar{}
+n=100 T=20\textbar{} n=30 T=50\textbar{} n=60 T=50\textbar{} n=100
+T=50\textbar{}
+\textbar:----------\textbar--------:\textbar--------:\textbar---------:\textbar--------:\textbar--------:\textbar---------:\textbar{}
+\textbar0.00 \textbar{} 0.00\textbar{} 0.01\textbar{} 0.01\textbar{}
+0.02\textbar{} 0.01\textbar{} 0.01\textbar{} \textbar0.05 \textbar{}
+0.06\textbar{} 0.04\textbar{} 0.10\textbar{} 0.02\textbar{}
+0.10\textbar{} 0.18\textbar{} \textbar0.10 \textbar{} 0.15\textbar{}
+0.30\textbar{} 0.44\textbar{} 0.33\textbar{} 0.53\textbar{}
+0.83\textbar{} \textbar0.20 \textbar{} 0.63\textbar{} 0.96\textbar{}
+0.98\textbar{} 0.83\textbar{} 0.98\textbar{} 1.00\textbar{} \textbar0.50
+\textbar{} 1.00\textbar{} 1.00\textbar{} 1.00\textbar{} 1.00\textbar{}
+1.00\textbar{} 1.00\textbar{}
+
+\end{table*}
+\efloatseparator
+ 
+\begin{table*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+
+{\caption{{Detection rates (\(P(\mathrm{BF}_{10} > 3)\)) and false-null
+support rates (\(P(\mathrm{BF}_{01} > 3)\)) for the matched Logistic(0,
+0.25) and JZS Cauchy(0, \(\sqrt{2}/2\)) priors across all simulation
+conditions. Under the true null (\(b_1 = 0\)),
+\(P(\mathrm{BF}_{01} > 3)\) reflects correct support for \(H_0\); under
+nonzero effects, it reflects false support for \(H_0\). \(n\): number of
+subjects; \(T\): trials per subject.}{\label{tbl-S-jzs-power}}}
+\vspace{-20pt}}
+
+\textbar Prior \textbar{} Metric \textbar{} True \(b_1\)\textbar{} n=30
+T=20\textbar{} n=60 T=20\textbar{} n=100 T=20\textbar{} n=30
+T=50\textbar{} n=60 T=50\textbar{} n=100 T=50\textbar{}
+\textbar:------------------------------------------\textbar----------:\textbar--------:\textbar--------:\textbar---------:\textbar--------:\textbar--------:\textbar---------:\textbar{}
+\textbar JZS Cauchy(0, √2/2) \textbar{} P(BF01\textgreater3) \textbar{}
+0.0\textbar{} 0.91\textbar{} 0.91\textbar{} 0.98\textbar{}
+0.97\textbar{} 0.98\textbar{} 0.98\textbar{} \textbar JZS Cauchy(0,
+√2/2) \textbar{} P(BF01\textgreater3) \textbar{} 0.1\textbar{}
+0.61\textbar{} 0.53\textbar{} 0.30\textbar{} 0.58\textbar{}
+0.30\textbar{} 0.09\textbar{} \textbar JZS Cauchy(0, √2/2) \textbar{}
+P(BF01\textgreater3) \textbar{} 0.2\textbar{} 0.17\textbar{}
+0.02\textbar{} 0.00\textbar{} 0.06\textbar{} 0.00\textbar{}
+0.00\textbar{} \textbar JZS Cauchy(0, √2/2) \textbar{}
+P(BF01\textgreater3) \textbar{} 0.5\textbar{} 0.00\textbar{}
+0.00\textbar{} 0.00\textbar{} 0.00\textbar{} 0.00\textbar{}
+0.00\textbar{} \textbar JZS Cauchy(0, √2/2) \textbar{}
+P(BF10\textgreater3) \textbar{} 0.0\textbar{} 0.00\textbar{}
+0.01\textbar{} 0.01\textbar{} 0.00\textbar{} 0.00\textbar{}
+0.00\textbar{} \textbar JZS Cauchy(0, √2/2) \textbar{}
+P(BF10\textgreater3) \textbar{} 0.1\textbar{} 0.10\textbar{}
+0.12\textbar{} 0.36\textbar{} 0.20\textbar{} 0.31\textbar{}
+0.70\textbar{} \textbar JZS Cauchy(0, √2/2) \textbar{}
+P(BF10\textgreater3) \textbar{} 0.2\textbar{} 0.50\textbar{}
+0.85\textbar{} 0.95\textbar{} 0.84\textbar{} 0.98\textbar{}
+1.00\textbar{} \textbar JZS Cauchy(0, √2/2) \textbar{}
+P(BF10\textgreater3) \textbar{} 0.5\textbar{} 1.00\textbar{}
+1.00\textbar{} 1.00\textbar{} 1.00\textbar{} 1.00\textbar{}
+1.00\textbar{} \textbar Matched Logistic(0, 0.25) \textbar{}
+P(BF01\textgreater3) \textbar{} 0.0\textbar{} 0.60\textbar{}
+0.78\textbar{} 0.87\textbar{} 0.86\textbar{} 0.83\textbar{}
+0.93\textbar{} \textbar Matched Logistic(0, 0.25) \textbar{}
+P(BF01\textgreater3) \textbar{} 0.1\textbar{} 0.40\textbar{}
+0.20\textbar{} 0.14\textbar{} 0.30\textbar{} 0.07\textbar{}
+0.00\textbar{} \textbar Matched Logistic(0, 0.25) \textbar{}
+P(BF01\textgreater3) \textbar{} 0.2\textbar{} 0.07\textbar{}
+0.00\textbar{} 0.00\textbar{} 0.03\textbar{} 0.00\textbar{}
+0.00\textbar{} \textbar Matched Logistic(0, 0.25) \textbar{}
+P(BF01\textgreater3) \textbar{} 0.5\textbar{} 0.00\textbar{}
+0.00\textbar{} 0.00\textbar{} 0.00\textbar{} 0.00\textbar{}
+0.00\textbar{} \textbar Matched Logistic(0, 0.25) \textbar{}
+P(BF10\textgreater3) \textbar{} 0.0\textbar{} 0.04\textbar{}
+0.03\textbar{} 0.03\textbar{} 0.00\textbar{} 0.01\textbar{}
+0.02\textbar{} \textbar Matched Logistic(0, 0.25) \textbar{}
+P(BF10\textgreater3) \textbar{} 0.1\textbar{} 0.20\textbar{}
+0.34\textbar{} 0.48\textbar{} 0.24\textbar{} 0.58\textbar{}
+0.75\textbar{} \textbar Matched Logistic(0, 0.25) \textbar{}
+P(BF10\textgreater3) \textbar{} 0.2\textbar{} 0.50\textbar{}
+0.87\textbar{} 0.99\textbar{} 0.89\textbar{} 1.00\textbar{}
+1.00\textbar{} \textbar Matched Logistic(0, 0.25) \textbar{}
+P(BF10\textgreater3) \textbar{} 0.5\textbar{} 1.00\textbar{}
+1.00\textbar{} 1.00\textbar{} 1.00\textbar{} 1.00\textbar{}
+1.00\textbar{}
+
+\end{table*}

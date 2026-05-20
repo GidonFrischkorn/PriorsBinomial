@@ -115,10 +115,11 @@ fit_and_get_bf_sd <- function(dat,
                       to   = max(x_range[2] + x_pad, 0))
   post_at_0 <- approxfun(kde$x, kde$y, rule = 2)(0)
 
-  if (!is.finite(post_at_0) || post_at_0 <= 0) return(NA_real_)
+  if (is.na(post_at_0) || is.nan(post_at_0)) return(NA_real_)
+  if (post_at_0 <= 0) return(Inf)
 
   bf10 <- prior_at_0 / post_at_0
-  if (!is.finite(bf10)) return(NA_real_)
+  if (is.na(bf10) || is.nan(bf10)) return(NA_real_)
   as.numeric(bf10)
 }
 
@@ -167,6 +168,7 @@ fit_and_get_bf_sd_re <- function(dat,
                                  n_chains     = 4,
                                  n_iter       = 2000,
                                  n_cores      = 1,
+                                 adapt_delta  = 0.95,
                                  silent       = TRUE) {
   link        <- match.arg(link)
   dist_b0     <- match.arg(dist_b0)
@@ -203,6 +205,7 @@ fit_and_get_bf_sd_re <- function(dat,
     chains  = n_chains,
     iter    = n_iter,
     cores   = n_cores,
+    control = list(adapt_delta = adapt_delta),
     silent  = if (silent) 2L else 0L,
     refresh = 0,
     backend = "cmdstanr"
@@ -222,10 +225,13 @@ fit_and_get_bf_sd_re <- function(dat,
                       to   = max(x_range[2] + x_pad, 0))
   post_at_0 <- approxfun(kde$x, kde$y, rule = 2)(0)
 
-  if (!is.finite(post_at_0) || post_at_0 <= 0) return(NA_real_)
+  if (is.na(post_at_0) || is.nan(post_at_0)) return(NA_real_)
+  # post_at_0 == 0 means posterior has no mass at 0 — extreme evidence for H1
+  if (post_at_0 <= 0) return(Inf)
 
   bf10 <- prior_at_0 / post_at_0
-  if (!is.finite(bf10)) return(NA_real_)
+  if (is.na(bf10) || is.nan(bf10)) return(NA_real_)
+  # Inf is a valid result (posterior far from 0); NA/NaN is not
   as.numeric(bf10)
 }
 
@@ -239,6 +245,7 @@ fit_and_get_bf_bs_re <- function(dat,
                                  n_chains     = 4,
                                  n_iter       = 2000,
                                  n_cores      = 1,
+                                 adapt_delta  = 0.95,
                                  silent       = TRUE) {
   link        <- match.arg(link)
   dist_b0     <- match.arg(dist_b0)
@@ -264,6 +271,7 @@ fit_and_get_bf_bs_re <- function(dat,
     chains       = n_chains,
     iter         = n_iter,
     cores        = n_cores,
+    control      = list(adapt_delta = adapt_delta),
     sample_prior = TRUE,
     save_pars    = brms::save_pars(all = TRUE),
     silent       = if (silent) 2L else 0L,
@@ -279,6 +287,7 @@ fit_and_get_bf_bs_re <- function(dat,
     chains       = n_chains,
     iter         = n_iter,
     cores        = n_cores,
+    control      = list(adapt_delta = adapt_delta),
     sample_prior = TRUE,
     save_pars    = brms::save_pars(all = TRUE),
     silent       = if (silent) 2L else 0L,
@@ -286,11 +295,24 @@ fit_and_get_bf_bs_re <- function(dat,
     backend      = "cmdstanr"
   )
 
-  # Bridge sampling for marginal likelihoods
-  ml_h1 <- suppressMessages(bridgesampling::bridge_sampler(fit_h1, silent = silent))
-  ml_h0 <- suppressMessages(bridgesampling::bridge_sampler(fit_h0, silent = silent))
+  # Bridge sampling for marginal likelihoods.
+  # Wrap each call: high-dimensional posteriors (many random effects) can
+  # produce NA log-densities that crash the bridge sampler's convergence loop.
+  ml_h1 <- tryCatch(
+    suppressMessages(bridgesampling::bridge_sampler(fit_h1, silent = silent)),
+    error = function(e) NULL
+  )
+  ml_h0 <- tryCatch(
+    suppressMessages(bridgesampling::bridge_sampler(fit_h0, silent = silent)),
+    error = function(e) NULL
+  )
 
-  bf10 <- bridgesampling::bf(ml_h1, ml_h0)$bf
+  if (is.null(ml_h1) || is.null(ml_h0)) return(NA_real_)
+
+  bf10 <- tryCatch(
+    bridgesampling::bf(ml_h1, ml_h0)$bf,
+    error = function(e) NA_real_
+  )
   if (!is.finite(bf10)) return(NA_real_)
   as.numeric(bf10)
 }

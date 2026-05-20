@@ -1,0 +1,649 @@
+---
+title: "Supplementary Materials: Principled Default Priors for Bayesian Hypothesis Testing in Binomial GLMs"
+shorttitle: "Supplement — Matched Priors for BF Testing in Binomial GLMs"
+author:
+  - name: Gidon T. Frischkorn
+    corresponding: true
+    email: gidon.frischkorn@psychologie.uzh.ch
+    affiliations:
+      - name: University of Zurich
+      - name: University of Lucerne
+  - name: Joscha Dutli
+    affiliations:
+      - name: University of Zurich
+  - name: Philipp Musfeld
+    affiliations:
+      - name: University of Amsterdam
+      - name: University of Zurich
+  - name: Klaus Oberauer
+    affiliations:
+      - name: University of Zurich
+format:
+  apaquarto-docx: default
+  apaquarto-html: default
+  apaquarto-pdf:
+    documentmode: man
+bibliography:
+  - references.bib
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggridges)
+library(viridis)
+library(scales)
+library(here)
+library(knitr)
+
+source(here("R", "link_functions.R"))
+source(here("R", "prior_sampling.R"))
+source(here("R", "plotting.R"))
+
+# Goal 1: Prior predictive results
+summaries_pp  <- readRDS(here("output", "prior_predictive_summaries.rds"))
+draws_long    <- readRDS(here("output", "prior_predictive_draws.rds"))
+
+# RE prior predictive results
+re_pp_summaries <- tryCatch(
+  readRDS(here("output", "prior_predictive_re_summaries.rds")),
+  error = function(e) NULL
+)
+re_pp_draws <- tryCatch(
+  readRDS(here("output", "prior_predictive_re_draws.rds")),
+  error = function(e) NULL
+)
+re_pp_available <- !is.null(re_pp_summaries) && !is.null(re_pp_draws)
+
+# Goal 2: BF calibration results
+summaries_bf  <- readRDS(here("output", "bf_calibration_summaries.rds"))
+continuous_bf <- readRDS(here("output", "bf_calibration_continuous.rds"))
+
+# Goal 2 extended: JZS comparison
+jzs_available <- file.exists(here("output", "bf_calibration_jzs_summaries.rds"))
+if (jzs_available) {
+  jzs_summaries <- readRDS(here("output", "bf_calibration_jzs_summaries.rds"))
+}
+
+# Applied example
+applied_data_available <- file.exists(here("output", "applied_example_sensitivity.rds"))
+if (applied_data_available) {
+  applied_sensitivity <- readRDS(here("output", "applied_example_sensitivity.rds"))
+  applied_fit_h1 <- tryCatch(
+    readRDS(here("output", "applied_example_fit_h1.rds")),
+    error = function(e) NULL
+  )
+  applied_fit_available <- !is.null(applied_fit_h1)
+}
+```
+
+## Full Simulation Design
+
+### Prior Predictive Simulation (Step 2)
+
+The prior predictive simulation crossed the following factors:
+
+- **Link function**: logit, probit (2 levels)
+- **Intercept prior family** ($b_0$): Normal, Logistic, Cauchy (3 levels)
+- **Intercept prior SD** ($\mathrm{sd}_{b_0}$): 0.50, 0.75, 1.00, 1.50 (4 levels)
+- **Effect prior family** ($b_1$): Normal, Logistic, Cauchy (3 levels)
+- **Effect prior SD** ($\mathrm{sd}_{b_1}$): 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 2.00 (10 levels)
+
+This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each condition, 10 replications of 10,000 draws were performed using the SimDesign package.
+
+### Bayes Factor Calibration (Step 3)
+
+The BF calibration crossed:
+
+- **Intercept prior family**: Logistic, Normal (2 levels; both at $\mathrm{sd}_{b_0} = 0.75$)
+- **Effect prior family**: Normal, Logistic, Cauchy (3 levels)
+- **Effect prior SD**: 0.25, 0.50 (2 levels)
+- **True effect** ($b_1$): 0, 0.05, 0.10, 0.20, 0.50 (5 levels)
+- **Number of subjects**: 30, 60, 100 (3 levels)
+- **Trials per subject**: 20, 50 (2 levels)
+
+This yields $2 \times 3 \times 2 \times 5 \times 3 \times 2 = 360$ conditions with 100 replications each.
+
+A separate random-effects simulation held fixed-effects priors at the recommended matched configuration and varied only the hyperprior: Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4), yielding 90 conditions with 100 replications each.
+
+### Information Consistency Simulation
+
+To demonstrate information consistency and Lindley consistency, a focused simulation was run with the matched Logistic(0, 0.25) prior. Data were generated under a between-subjects design: $N = 2 \times n_{\mathrm{subjects}}$ participants each contributing one binomial count from $n_{\mathrm{trials}}$ trials in a single condition ($x \in \{+1, -1\}$, sum-to-zero coded). Participant-level random intercepts were included in both data generation and model fitting. Information consistency is a property of the prior density at zero relative to posterior concentration around the true effect; it does not depend on the between- versus within-subjects structure of the design, and the results reported here are expected to generalise to within-subjects (repeated-measures) hierarchical models.
+
+- **Intercept prior family**: Logistic (matched; $\mathrm{sd}_{b_0} = 0.75$)
+- **Effect prior family**: Logistic (matched; $\mathrm{sd}_{b_1} = 0.25$)
+- **True effect** ($b_1$): 0.00, 0.20, 0.50, 1.00, 2.00, 3.00 (6 levels; extended range)
+- **Number of subjects**: 30, 100, 200, 500, 1000 (5 levels; extended range; $n_{\mathrm{subjects}}$ denotes participants per condition)
+- **Trials per subject**: 20 (fixed)
+
+This yields $6 \times 5 = 30$ conditions with 100 replications each.
+
+### JZS/Cauchy Comparison Simulation
+
+To directly compare the matched prior against the JZS/Cauchy default [@rouder2012]:
+
+- **Prior condition**: Matched Logistic(0, 0.25) vs. JZS Cauchy(0, $\sqrt{2}/2$)
+- **True effect** ($b_1$): 0.00, 0.10, 0.20, 0.50 (4 levels)
+- **Number of subjects**: 30, 60, 100 (3 levels)
+- **Trials per subject**: 20, 50 (2 levels)
+
+This yields $2 \times 4 \times 3 \times 2 = 48$ conditions with 100 replications each.
+
+### Density Formulas for Analytical Overlays
+
+For the logit link with a $\mathrm{Logistic}(0, s)$ prior on $b_0$: $f(p) = f_{\mathrm{Logis}}(\mathrm{logit}(p), 0, s) / [p(1-p)]$. At $s = 1$, the logistic density and the Jacobian $p(1-p)$ cancel, giving $f(p) = 1$. For the probit link with a $\mathrm{Normal}(0, \sigma)$ prior: $f(p) = \phi(\mathrm{probit}(p)/\sigma) / [\sigma \cdot \phi(\mathrm{probit}(p))]$, where $\phi$ denotes the standard normal density. At $\sigma = 1$, the normal densities cancel, again yielding $f(p) = 1$.
+
+
+## Comparison to G-Priors {#sec-gprior-comparison}
+
+G-priors [@liang2008] specify that the regression coefficients follow a multivariate normal distribution whose covariance scales with the Fisher information matrix:
+
+$$\beta \sim \mathrm{Normal}\!\left(\beta_0,\; g \cdot I(\beta_0)^{-1}\right)$$
+
+where $g > 0$ is a scalar hyperparameter (or mixture weight) and $I(\beta_0)$ is the Fisher information matrix evaluated at a reference point $\beta_0$. For Gaussian linear models, $I(\beta_0)^{-1} = \sigma^2 (X'X)^{-1}$, giving a prior covariance that is proportional to the ordinary least-squares covariance matrix. @bove2011 and @liclyde2018 extend this framework to GLMs by replacing $(X'X)$ with the GLM Fisher information, which for binomial models is the IRLS weight matrix:
+
+$$I(\beta_0) = X' W(\beta_0) X$$
+
+where $W(\beta_0) = \mathrm{diag}\!\left(p_i(\beta_0)\,[1 - p_i(\beta_0)]\right)$ and $p_i(\beta_0) = g^{-1}(x_i' \beta_0)$ are the predicted probabilities under the reference point $\beta_0$. The key consequence is that the g-prior covariance depends on the design matrix $X$ and on the weight matrix $W$, which is evaluated at predicted probabilities that vary with $\beta_0$, $X$, and the link function. This means:
+
+1. **The prior scale is design-dependent.** For two datasets with the same number of subjects but different predictor values or designs, the g-prior implies different prior scales on the coefficient scale, and therefore different implied distributions on the probability scale. No universal recommendation like "Logistic(0, 0.75)" is possible.
+
+2. **The prior scale on the probability scale is not analytically tractable.** Because $W(\beta_0)$ depends on the predicted probabilities, the implied distribution of $g^{-1}(\beta)$ on the probability scale cannot be derived analytically. Prior predictive checking must be done numerically for each specific dataset, limiting the use of g-priors as a general diagnostic tool for prior plausibility.
+
+To illustrate the design dependence, consider a simple one-predictor binomial GLM with a single covariate $x$ (sum-to-zero coded, $\pm 1$). For $n$ participants split equally between two conditions:
+
+$$I_{b_1}(\beta_0) = n \cdot p_0(1-p_0)$$
+
+where $p_0 = g^{-1}(b_0)$ is the baseline probability. The g-prior for $b_1$ is then $b_1 \sim \mathrm{Normal}(0,\, [g \cdot n \cdot p_0(1-p_0)]^{-1})$. This implied scale on $b_1$ changes with every dataset: it decreases as $n$ grows (requiring ever-tighter priors as we collect more data), and varies with the baseline probability $p_0$ (being tightest near $p_0 = 0.5$ and becoming increasingly diffuse as $p_0$ approaches 0 or 1). In contrast, the matched prior Logistic(0, 0.75) has a fixed scale that does not depend on $n$, $p_0$, or the design.
+
+The matched prior's design-independence makes it straightforward to reason about and communicate: a researcher can state "I used Logistic(0, 0.25)" and a reader immediately knows the implied prior predictive distribution on the probability scale, regardless of the specific dataset. G-prior scale recommendations, by contrast, are necessarily conditional on the dataset structure.
+
+From a practical standpoint, g-priors are also not readily available in `brms` or Stan in an accessible form, limiting their uptake in the applied behavioral research community that these recommendations are aimed at.
+
+### Design-Dependent Scales: A Numerical Illustration
+
+@tbl-gprior-scales illustrates the design dependence quantitatively. For the simple two-group design described above, the unit-information g-prior ($g = 1$) implies an effect prior SD of $\mathrm{SD}_g = 1 / \sqrt{n_{\mathrm{total}} \cdot p_0(1-p_0)}$. @tbl-gprior-scales shows this implied SD across a range of sample sizes and baseline probabilities, alongside the matched prior's fixed SD of 0.25.
+
+```{r}
+#| label: tbl-gprior-scales
+#| tbl-cap: "Implied SD of the unit-information g-prior ($g = 1$) for a balanced
+#|   two-group binomial GLM across combinations of sample size and baseline
+#|   probability. The matched Logistic(0, 0.25) prior always has SD = 0.25,
+#|   regardless of design. The g-prior SD varies substantially across these
+#|   scenarios: it shrinks as $n$ grows and is smallest near $p_0 = 0.50$."
+
+gprior_table <- expand.grid(
+  n_subjects = c(30, 60, 100),
+  p0         = c(0.30, 0.50, 0.70)
+) |>
+  mutate(
+    n_total     = 2 * n_subjects,
+    sd_gprior   = round(1 / sqrt(n_total * p0 * (1 - p0)), 3),
+    sd_matched  = 0.25
+  ) |>
+  select(n_subjects, p0, sd_gprior, sd_matched)
+
+knitr::kable(
+  gprior_table,
+  col.names = c(
+    "$n_{\\text{subjects}}$",
+    "$p_0$",
+    "G-prior SD ($g = 1$)",
+    "Matched Logistic SD"
+  ),
+  align  = c("r", "r", "r", "r"),
+  escape = FALSE
+)
+```
+
+The g-prior SD ranges from `r min(gprior_table$sd_gprior)` to `r max(gprior_table$sd_gprior)` across these nine scenarios, spanning a threefold range. Notably, the g-prior is narrower than the matched prior (SD = 0.25) in the larger-sample, central-probability conditions, but wider in the smaller-sample or extreme-baseline conditions. Because there is no universal relationship between the g-prior scale and the matched prior scale, no single g-prior recommendation can substitute for the matched-prior approach.
+
+### Prior Predictive Implications of G-Priors
+
+@fig-S3-gprior-pp shows the prior predictive distributions on the effect scale ($\delta p$) for the matched Logistic(0, 0.25) prior and the unit-information g-prior across three representative design scenarios. For the matched prior, the distribution is identical across scenarios by design: a researcher applying Logistic(0, 0.25) obtains the same prior predictive guarantees regardless of sample size or baseline. For the unit-information g-prior, the distribution shifts across scenarios: the prior concentrates more tightly on small effects in larger samples and spreads more broadly at extreme baselines.
+
+```{r}
+#| label: fig-S3-gprior-pp
+#| fig-cap: "Prior predictive distributions of $\\delta p$ for the matched
+#|   Logistic(0, 0.25) prior (dark) and the unit-information g-prior ($g = 1$,
+#|   light) across three design scenarios. The matched prior's distribution is
+#|   identical in all three panels by construction. The g-prior distribution
+#|   shifts across scenarios: it concentrates more tightly at larger $n$
+#|   ($n = 100$, centre panel) and spreads more broadly at an extreme baseline
+#|   probability ($p_0 = 0.30$, right panel). Dotted lines mark
+#|   $|\\delta p| = 0.10$ and $|\\delta p| = 0.20$."
+#| fig-height: 4
+#| fig-width: 11
+
+set.seed(2024)
+n_gpp <- 30000
+
+# Design scenarios: n_subjects, p0 → g-prior SD
+gprior_scen <- data.frame(
+  n_subjects = c(30, 100, 30),
+  p0         = c(0.50, 0.50, 0.30),
+  stringsAsFactors = FALSE
+)
+gprior_scen$n_total   <- 2 * gprior_scen$n_subjects
+gprior_scen$sd_gprior <- 1 / sqrt(gprior_scen$n_total *
+                                     gprior_scen$p0 * (1 - gprior_scen$p0))
+gprior_scen$label <- paste0(
+  "n = ", gprior_scen$n_subjects, ", p0 = ", gprior_scen$p0,
+  "  (SD[g] = ", round(gprior_scen$sd_gprior, 2), ")"
+)
+
+# Matched prior draws (same for all scenarios)
+b0_base    <- rlogis(n_gpp, 0, 0.75)
+b1_matched <- rlogis(n_gpp, 0, 0.25)
+dp_matched <- plogis(b0_base + b1_matched) - plogis(b0_base - b1_matched)
+
+# Build combined data frame
+gpp_rows <- lapply(seq_len(nrow(gprior_scen)), function(i) {
+  sc <- gprior_scen[i, ]
+  b0 <- rlogis(n_gpp, 0, 0.75)
+  b1_g <- rnorm(n_gpp, 0, sc$sd_gprior)
+  dp_g <- plogis(b0 + b1_g) - plogis(b0 - b1_g)
+  rbind(
+    data.frame(delta_p = dp_matched, label = sc$label,
+               prior = "Matched Logistic(0, 0.25)",
+               stringsAsFactors = FALSE),
+    data.frame(delta_p = dp_g, label = sc$label,
+               prior = paste0("G-prior (g = 1; SD = ",
+                              round(sc$sd_gprior, 2), ")"),
+               stringsAsFactors = FALSE)
+  )
+})
+gpp_data <- do.call(rbind, gpp_rows) |>
+  mutate(
+    prior = factor(prior, levels = c(
+      "Matched Logistic(0, 0.25)",
+      paste0("G-prior (g = 1; SD = ",
+             round(gprior_scen$sd_gprior, 2), ")")
+    ))
+  )
+
+ggplot(gpp_data, aes(x = delta_p, colour = prior, fill = prior)) +
+  geom_density(alpha = 0.25, linewidth = 0.8) +
+  geom_vline(xintercept = c(-0.20, -0.10, 0.10, 0.20),
+             linetype = "dotted", linewidth = 0.4, colour = "grey40") +
+  geom_vline(xintercept = 0, linewidth = 0.5, colour = "grey20") +
+  facet_wrap(~ label, nrow = 1) +
+  scale_x_continuous(expression(delta * italic(p)),
+                     limits = c(-1, 1),
+                     breaks = seq(-1, 1, 0.25)) +
+  scale_fill_viridis_d("Prior", option = "D", end = 0.85) +
+  scale_colour_viridis_d("Prior", option = "D", end = 0.85) +
+  prior_theme() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 9))
+```
+
+### Properties Against Formal Criteria {#sec-bayarri-desiderata}
+
+@bayarri2012 propose a set of criteria for evaluating objective priors used in Bayesian model comparison. The main paper discusses how matched priors satisfy four of these criteria (see the Properties of Matched-Prior Bayes Factors section). Here we briefly assess how g-priors for GLMs compare on each criterion.
+
+**Information consistency.** A prior is information-consistent if the Bayes factor in favour of the true model grows without bound as the effect size grows (with fixed $n$). Fixed-scale normal and logistic priors satisfy this criterion: the prior density at zero is constant while the posterior density at zero decreases toward zero as the signal strengthens, driving $\mathrm{BF}_{10} = f_{\mathrm{prior}}(0) / f_{\mathrm{post}}(0) \to \infty$. Fixed-$g$ priors suffer from the *information paradox* described by @liang2008: because the prior contracts toward zero as the Fisher information grows, the marginal likelihood under $H_1$ does not grow unboundedly, and the Bayes factor can remain bounded even as the true effect size increases. Mixture-of-$g$ priors (e.g., the ZS-adapted prior of @liang2008) resolve this paradox, but in the context of GLMs their evaluation requires Laplace approximation [@liclyde2018], which introduces additional approximation error and is not accessible via standard software such as `brms`.
+
+**Model selection consistency.** Fixed-$g$ priors also exhibit Bartlett's paradox: as $g \to \infty$ (i.e., as the prior becomes very diffuse), the Bayes factor collapses to favour $H_0$ regardless of the data, making it impossible to accumulate decisive evidence for $H_1$ with a highly diffuse prior. Matched priors with fixed, finite scale avoid this problem; model selection consistency (the probability of correctly identifying the true model approaching 1 as $n \to \infty$) follows from standard Bayesian consistency results for proper priors with full support at the true parameter value. Mixture-of-$g$ priors also achieve model selection consistency under regularity conditions [@liang2008].
+
+**Measurement invariance.** Under sum-to-zero $\pm 1$ contrast coding, the matched Logistic(0, 0.25) prior implies a symmetric prior predictive distribution for $\delta p$: reversing the sign of the predictor reverses the sign of $b_1$ but leaves $|\delta p|$ unchanged. The Bayes factor therefore does not depend on which group is arbitrarily labelled $+1$ or $-1$. G-prior scales are determined by the Fisher information matrix evaluated at a reference point $\beta_0$, which depends on the design structure; the resulting symmetry properties depend on the specific design.
+
+**Predictive matching.** In our workflow, the matched prior achieves predictive matching in the sense of @bayarri2012 by construction: because the prior family mirrors the inverse link function (probability integral transform), the prior predictive distribution on the probability scale is exactly uniform at scale 1 and plausibly concentrated at scale 0.75. G-prior prior predictive distributions on the probability scale are not analytically tractable (see @tbl-gprior-scales and @fig-S3-gprior-pp) and must be numerically evaluated for each specific dataset, limiting their use as a diagnostic tool.
+
+@tbl-bayarri-comparison summarises the comparison.
+
+| Criterion | Matched prior | G-prior (fixed $g$) | Mixture-of-$g$ |
+|-----------|:-------------|:-------------------|:--------------|
+| Information consistency | Yes | No (information paradox) | Yes |
+| Model selection consistency | Yes | No (Bartlett's paradox) | Yes |
+| Measurement invariance | Yes (sum-to-zero coding) | Design-dependent | Design-dependent |
+| Predictive matching | Yes (by construction via Step 2) | Not directly accessible | Not directly accessible |
+| Available in `brms`/Stan | Yes | No | No |
+
+: Comparison of matched priors, fixed-$g$ priors, and mixture-of-$g$ priors against formal Bayesian model comparison criteria. References: information paradox and mixture-of-$g$ [@liang2008]; GLM extension [@liclyde2018; @bove2011]; criteria framework [@bayarri2012]. {#tbl-bayarri-comparison}
+
+
+## Full Bayes Factor Calibration Results {#sec-full-bf-results}
+
+The main paper presents BF calibration results for a representative subset of conditions ($n_{\text{subjects}} = 30$, 20 trials, true $b_1 \in \{0, 0.10, 0.20\}$). This section provides the full results for the matched Logistic(0, 0.25) effect prior across all 5 true effect sizes, 3 sample sizes, and 2 trial counts.
+
+### Detection Rates for the Matched Prior
+
+@tbl-bf-power shows detection rates ($P(\mathrm{BF}_{10} > 3)$) for the matched Logistic(0, 0.25) prior with a matched Logistic(0, 0.75) intercept prior. Under the null ($b_1 = 0$), the false-positive rate is well-controlled below 5% in all conditions. Detection rates increase with effect size and sample size as expected, and are substantially higher with 50 versus 20 trials per subject.
+
+```{r}
+#| label: tbl-bf-power
+#| tbl-cap: "Detection rates ($P(\\mathrm{BF}_{10} > 3)$) for the matched
+#|   Logistic(0, 0.25) effect prior across all simulation conditions. Columns
+#|   show results for each combination of sample size ($n$) and trials per
+#|   subject ($T$). Rows correspond to true effect sizes on the logit scale.
+#|   Under the null ($b_1 = 0$), rates reflect false-positive evidence for $H_1$."
+
+power_table <- summaries_bf |>
+  filter(dist_b0 == "logistic", dist_b1 == "logistic", sd_b1 == 0.25) |>
+  mutate(
+    col_label = paste0("n=", n_subjects, "\nT=", n_trials)
+  ) |>
+  select(true_b1, col_label, P_BF10_gt3) |>
+  mutate(P_BF10_gt3 = round(P_BF10_gt3, 2)) |>
+  pivot_wider(names_from = col_label, values_from = P_BF10_gt3)
+
+knitr::kable(
+  power_table,
+  col.names  = c("True $b_1$", colnames(power_table)[-1]),
+  align      = c("l", rep("r", ncol(power_table) - 1)),
+  escape     = FALSE
+)
+```
+
+### BF Distributions Across All Conditions
+
+@fig-S4-bf-full shows the full pattern of Bayes Factor evidence across all conditions as a heatmap of median $\log_{10}(\mathrm{BF}_{10})$. Each cell shows the central tendency of the BF distribution for one simulation condition, with positive values indicating evidence for $H_1$ (an effect exists) and negative values indicating evidence for $H_0$ (no effect). The matched prior yields calibrated evidence: under the null, median BFs are slightly below 1, reflecting appropriate support for $H_0$ with moderate-to-large samples.
+
+```{r}
+#| label: fig-S4-bf-full
+#| fig-cap: "Median $\\log_{10}(\\mathrm{BF}_{10})$ across all simulation
+#|   conditions for the matched Logistic(0, 0.25) effect prior with matched
+#|   Logistic(0, 0.75) intercept prior. Rows correspond to true effect sizes;
+#|   columns to sample sizes. The two panels show results for 20 (left) and 50
+#|   (right) trials per subject. Positive values (yellow) indicate evidence for
+#|   $H_1$; negative values (dark) indicate evidence for $H_0$. Dashed contour
+#|   at $\\log_{10}(\\mathrm{BF}) = \\pm \\log_{10}(3) \\approx \\pm 0.48$ marks the
+#|   conventional BF = 3 threshold."
+#| fig-height: 5
+#| fig-width: 10
+
+bf_heatmap_data <- continuous_bf |>
+  filter(dist_b0 == "logistic", dist_b1 == "logistic", sd_b1 == 0.25) |>
+  mutate(
+    n_trials_label  = paste0("Trials per subject: ", n_trials),
+    true_b1_label   = factor(paste0("b[1] == ", true_b1),
+                             levels = paste0("b[1] == ",
+                                             sort(unique(true_b1)))),
+    n_subjects_fac  = factor(n_subjects)
+  )
+
+ggplot(bf_heatmap_data,
+       aes(x = n_subjects_fac, y = true_b1_label, fill = median_log10_BF10)) +
+  geom_tile(colour = "white", linewidth = 0.3) +
+  geom_text(aes(label = sprintf("%.2f", median_log10_BF10)),
+            size = 3.2, colour = "white", fontface = "bold") +
+  facet_wrap(~ n_trials_label, nrow = 1) +
+  scale_fill_gradient2(
+    name   = expression(median ~ log[10](BF[10])),
+    low    = "#440154", mid = "grey90", high = "#FDE725",
+    midpoint = 0,
+    limits   = c(-1.5, 2.5),
+    oob      = scales::squish
+  ) +
+  scale_x_discrete("Number of subjects") +
+  scale_y_discrete("True effect size", labels = scales::label_parse()) +
+  prior_theme() +
+  theme(legend.position = "bottom",
+        legend.key.width = unit(2, "cm"),
+        axis.text.y = element_text(size = 9))
+```
+
+
+## JZS/Cauchy Comparison: Full Results {#sec-jzs-full-results}
+
+This section provides the full detection-rate results for the JZS/Cauchy comparison simulation, supplementing the main paper's violin-plot figure. @tbl-S-jzs-power shows $P(\mathrm{BF}_{10} > 3)$ (power, i.e., detecting a true effect) and $P(\mathrm{BF}_{01} > 3)$ (false-null support, i.e., falsely concluding $H_0$ when a true effect is present) for both the matched Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
+
+```{r}
+#| label: tbl-S-jzs-power
+#| tbl-cap: "Detection rates ($P(\\mathrm{BF}_{10} > 3)$) and false-null support
+#|   rates ($P(\\mathrm{BF}_{01} > 3)$) for the matched Logistic(0, 0.25) and
+#|   JZS Cauchy(0, $\\sqrt{2}/2$) priors across all simulation conditions.
+#|   Under the true null ($b_1 = 0$), $P(\\mathrm{BF}_{01} > 3)$ reflects correct
+#|   support for $H_0$; under nonzero effects, it reflects false support for $H_0$.
+#|   $n$: number of subjects; $T$: trials per subject."
+#| eval: !expr jzs_available
+
+jzs_tbl <- readRDS(here("output", "bf_calibration_jzs_power_table.rds")) |>
+  mutate(
+    P_BF10_gt3 = round(P_BF10_gt3, 2),
+    P_BF01_gt3 = round(P_BF01_gt3, 2),
+    col_label  = paste0("n=", n_subjects, "\nT=", n_trials)
+  ) |>
+  select(prior_label, true_b1, col_label, P_BF10_gt3, P_BF01_gt3) |>
+  pivot_longer(c(P_BF10_gt3, P_BF01_gt3),
+               names_to = "metric", values_to = "val") |>
+  mutate(metric = recode(metric,
+                         P_BF10_gt3 = "P(BF10>3)",
+                         P_BF01_gt3 = "P(BF01>3)")) |>
+  unite("prior_metric", prior_label, metric, sep = " | ") |>
+  pivot_wider(names_from = col_label, values_from = val) |>
+  arrange(prior_metric, true_b1)
+
+knitr::kable(
+  jzs_tbl,
+  col.names = c("Prior | Metric", "True $b_1$",
+                colnames(jzs_tbl)[-(1:2)]),
+  align  = c("l", "r", rep("r", ncol(jzs_tbl) - 2)),
+  escape = FALSE
+)
+```
+
+@fig-S-jzs-heatmap shows the median $\log_{10}(\mathrm{BF}_{10})$ across all JZS comparison conditions as a heatmap, with the two priors in separate columns. This complements the distributional comparison in the main paper by showing the full factorial pattern across sample sizes, trial counts, and effect sizes.
+
+```{r}
+#| label: fig-S-jzs-heatmap
+#| fig-cap: "Median $\\log_{10}(\\mathrm{BF}_{10})$ for the matched Logistic(0, 0.25)
+#|   (left columns) and JZS Cauchy(0, $\\sqrt{2}/2$) (right columns) priors across
+#|   all simulation conditions. Rows: true effect size. Columns: sample size and
+#|   prior. Panels: trials per subject. Positive values (yellow) indicate evidence
+#|   for $H_1$; negative values (dark) indicate evidence for $H_0$."
+#| fig-height: 5
+#| fig-width: 11
+#| eval: !expr jzs_available
+
+jzs_continuous <- readRDS(here("output", "bf_calibration_jzs_continuous.rds")) |>
+  mutate(
+    prior_label    = case_when(
+      dist_b1 == "logistic" ~ "Matched\nLogistic(0, 0.25)",
+      dist_b1 == "cauchy"   ~ "JZS\nCauchy(0, sqrt(2)/2)"
+    ),
+    n_trials_label = paste0("Trials per subject: ", n_trials),
+    true_b1_label  = factor(paste0("b[1] == ", true_b1),
+                            levels = paste0("b[1] == ", sort(unique(true_b1)))),
+    n_subjects_fac = factor(n_subjects)
+  )
+
+ggplot(jzs_continuous,
+       aes(x = interaction(n_subjects_fac, prior_label, sep = "\n"),
+           y = true_b1_label,
+           fill = median_log10_BF10)) +
+  geom_tile(colour = "white", linewidth = 0.3) +
+  geom_text(aes(label = sprintf("%.2f", median_log10_BF10)),
+            size = 2.8, colour = "white", fontface = "bold") +
+  facet_wrap(~ n_trials_label, nrow = 1) +
+  scale_fill_gradient2(
+    name     = expression(median ~ log[10](BF[10])),
+    low      = "#440154", mid = "grey90", high = "#FDE725",
+    midpoint = 0, limits = c(-1.5, 2.5), oob = scales::squish
+  ) +
+  scale_x_discrete("n subjects / Prior") +
+  scale_y_discrete("True effect size", labels = scales::label_parse()) +
+  prior_theme() +
+  theme(legend.position = "bottom",
+        legend.key.width = unit(2, "cm"),
+        axis.text.x = element_text(size = 7))
+```
+
+
+## Applied Example: Full Details {#sec-applied-details}
+
+This section provides additional details for the applied example in the main paper, including the full prior predictive check, posterior summary, and BF sensitivity analysis. The example uses data from @oberauer2019, Experiment 1 (simple span working memory task with 20 participants).
+
+### Prior Predictive Check
+
+@fig-S5-applied-pp compares the prior predictive distributions of $\delta p$ under the matched Logistic(0, 0.25) effect prior and the Cauchy(0, 2.5) prior recommended by @gelman2008 for estimation. The predictor `ss_lin` is a standardised linear contrast for set size ($x \in \{-3.83, -1.83, 0.17, 2.17\}$, approximately SD = 1). The Cauchy(0, 2.5) prior assigns substantial prior mass to implausibly large set-size effects on the recall probability scale, while the matched prior concentrates mass on effects smaller than $|\delta p| \approx 0.20$ per unit of the predictor.
+
+```{r}
+#| label: fig-S5-applied-pp
+#| fig-cap: "Prior predictive distributions of $|\\delta p|$ for the set-size
+#|   predictor in the applied working memory example, comparing the matched
+#|   Logistic(0, 0.25) prior (dark) against the Cauchy(0, 2.5) prior (light)
+#|   recommended for estimation by Gelman et al. (2008). The matched prior
+#|   concentrates mass on effects smaller than $|\\delta p| \\approx 0.20$;
+#|   the Cauchy prior assigns substantial mass to implausibly large effects.
+#|   Dotted lines mark $|\\delta p| = 0.10$ and $|\\delta p| = 0.20$."
+#| fig-height: 4
+#| fig-width: 8
+
+set.seed(2024)
+n_app_pp <- 30000
+
+b0_app <- rlogis(n_app_pp, 0, 0.75)
+
+b1_matched_app <- rlogis(n_app_pp, 0, 0.25)
+dp_matched_app <- abs(plogis(b0_app + b1_matched_app) -
+                        plogis(b0_app - b1_matched_app))
+
+b1_cauchy_app  <- rcauchy(n_app_pp, 0, 2.5)
+dp_cauchy_app  <- abs(plogis(b0_app + b1_cauchy_app) -
+                        plogis(b0_app - b1_cauchy_app))
+
+app_pp_data <- rbind(
+  data.frame(abs_dp = dp_matched_app,
+             prior  = "Matched Logistic(0, 0.25)",
+             stringsAsFactors = FALSE),
+  data.frame(abs_dp = dp_cauchy_app,
+             prior  = "Cauchy(0, 2.5) [Gelman et al. 2008]",
+             stringsAsFactors = FALSE)
+) |>
+  mutate(prior = factor(prior,
+                        levels = c("Matched Logistic(0, 0.25)",
+                                   "Cauchy(0, 2.5) [Gelman et al. 2008]")))
+
+ggplot(app_pp_data, aes(x = abs_dp, colour = prior, fill = prior)) +
+  geom_density(alpha = 0.25, linewidth = 0.8) +
+  geom_vline(xintercept = c(0.10, 0.20),
+             linetype = "dotted", linewidth = 0.4, colour = "grey40") +
+  scale_x_continuous(expression("|" * delta * italic(p) * "|"),
+                     limits = c(0, 1), breaks = seq(0, 1, 0.2)) +
+  scale_fill_viridis_d("Prior", option = "D", end = 0.85) +
+  scale_colour_viridis_d("Prior", option = "D", end = 0.85) +
+  prior_theme() +
+  theme(legend.position = "bottom")
+```
+
+### Posterior Summary and Bayes Factor
+
+```{r}
+#| label: applied-posterior-summary
+#| eval: !expr (applied_data_available && applied_fit_available)
+
+library(posterior)
+draws_h1    <- as_draws_df(applied_fit_h1)
+b_ss_draws  <- draws_h1[["b_ss_lin_z"]]
+
+cat(sprintf(
+  "b_ss_lin_z: mean = %.3f, SD = %.3f, 95%% CI = [%.3f, %.3f]\n",
+  mean(b_ss_draws),
+  sd(b_ss_draws),
+  quantile(b_ss_draws, 0.025),
+  quantile(b_ss_draws, 0.975)
+))
+
+# Bridge sampling BF (preferred when posterior is far from null)
+applied_bf_bridge <- readRDS(here("output", "applied_example_bf_bridge.rds"))
+cat(sprintf("BF10 (bridge sampling, log10) = %.1f\n",
+            applied_bf_bridge$log10_BF10))
+
+# Savage-Dickey density ratio (illustrative — underflows at this effect size)
+prior_at_0 <- dlogis(0, location = 0, scale = 0.25)
+kde        <- density(b_ss_draws, bw = "nrd0")
+post_at_0  <- approxfun(kde$x, kde$y, rule = 2)(0)
+BF10_sd    <- if (post_at_0 <= 0) Inf else prior_at_0 / post_at_0
+cat(sprintf("BF10 (Savage-Dickey) = %s\n",
+            if (is.infinite(BF10_sd)) "Inf (posterior mass at 0 underflows KDE)"
+            else sprintf("%.1f", BF10_sd)))
+```
+
+### Sensitivity Analysis
+
+The figure below shows the Bayes factor as a function of the effect prior scale $\mathrm{sd}_{b_1} \in \{0.15, 0.25, 0.35\}$.
+
+```{r}
+#| label: fig-S6-applied-sensitivity
+#| fig-cap: "Sensitivity analysis for the applied example: Bayes factor $\\mathrm{BF}_{10}$
+#|   as a function of the effect prior scale $\\mathrm{sd}_{b_1}$. The horizontal
+#|   dashed lines mark the BF = 10 and BF = 100 thresholds for strong and very
+#|   strong evidence. Results are shown on a $\\log_{10}$ scale."
+#| fig-height: 4
+#| fig-width: 6
+#| eval: !expr applied_data_available
+
+applied_sensitivity |>
+  mutate(log10_BF10 = log10(BF10)) |>
+  ggplot(aes(x = sd_b1, y = log10_BF10)) +
+  geom_hline(yintercept = c(log10(10), log10(100)),
+             linetype = "dashed", colour = "grey50", linewidth = 0.5) +
+  geom_line(linewidth = 0.9) +
+  geom_point(size = 3) +
+  scale_x_continuous(
+    expression("Effect prior scale " * sd[b[1]]),
+    breaks = c(0.15, 0.25, 0.35)
+  ) +
+  scale_y_continuous(
+    expression(BF[10]),
+    breaks = log10(c(10, 100, 1000)),
+    labels = c("10", "100", "1000")
+  ) +
+  prior_theme()
+```
+
+
+## Supplementary Figures
+
+```{r}
+#| label: fig-S1-floor-ceiling
+#| fig-cap: "Proportion of prior predictive mass in the floor/ceiling region
+#|   (p < 0.05 or p > 0.95) as a function of intercept prior SD and family.
+#|   The matched prior at $\\mathrm{sd}_{b_0} = 1.0$ places exactly 10% in this region
+#|   (2 x 0.05 = 0.10), confirming the uniform result. At $\\mathrm{sd}_{b_0} = 0.75$,
+#|   floor/ceiling mass drops below 10% for both matched priors."
+#| fig-height: 6
+#| fig-width: 10
+
+plot_floor_ceiling_heatmap(summaries_pp)
+```
+
+```{r}
+#| label: fig-S2-re-delta-p
+#| fig-cap: "Effect size heterogeneity by hyperprior family and scale for the
+#|   intercept + slope model. At matched scale, all families produce similar
+#|   effect heterogeneity. Dotted lines mark +/-0.10, +/-0.20, +/-0.30."
+#| fig-height: 8
+#| fig-width: 12
+#| eval: !expr re_pp_available
+
+re_pp_draws |>
+  filter(re_structure == "Intercept + slope") |>
+  group_by(hp_family, hp_mean) |>
+  slice_sample(n = 10000) |>
+  ungroup() |>
+  mutate(hp_mean_label = paste0("mu == ", hp_mean)) |>
+  ggplot(aes(x = delta_p, y = hp_family,
+             fill = hp_family, colour = hp_family)) +
+  geom_density_ridges(stat = "binline", bins = 80,
+                      alpha = 0.5, scale = 0.9) +
+  geom_vline(xintercept = 0, linewidth = 0.5, colour = "grey20") +
+  geom_vline(xintercept = c(-0.30, -0.20, -0.10, 0.10, 0.20, 0.30),
+             linetype = "dotted", linewidth = 0.5, colour = "grey40") +
+  facet_wrap(~ hp_mean_label, ncol = 2,
+             labeller = label_parsed) +
+  scale_fill_viridis_d(option = "D", end = 0.85, guide = "none") +
+  scale_colour_viridis_d(option = "D", end = 0.85, guide = "none") +
+  scale_x_continuous(
+    expression(delta * italic(p)),
+    limits = c(-1, 1), breaks = seq(-1, 1, 0.25)
+  ) +
+  scale_y_discrete("Family") +
+  prior_theme()
+```
