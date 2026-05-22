@@ -181,6 +181,17 @@
   doi     = {10.21105/joss.01541},
 }
 
+@Article{schad2021,
+  title   = {Toward a Principled {Bayesian} Workflow in Cognitive Science},
+  author  = {Daniel J. Schad and Michael Betancourt and Shravan Vasishth},
+  journal = {Psychological Methods},
+  year    = {2021},
+  volume  = {26},
+  number  = {1},
+  pages   = {103--126},
+  doi     = {10.1037/met0000275},
+}
+
 % ---- Weakly informative priors for GLMs ------------------------------------
 
 @Article{gelman2008,
@@ -251,6 +262,60 @@
   doi     = {10.3758/s13423-017-1230-y},
 }
 
+% ---- Prior sensitivity and BF applications (Psychological Methods) ----------
+
+@Article{hoijtink2021,
+  title   = {Prior Sensitivity of Null Hypothesis {Bayesian} Testing},
+  author  = {Herbert Hoijtink},
+  journal = {Psychological Methods},
+  year    = {2021},
+  volume  = {27},
+  number  = {5},
+  pages   = {804--821},
+  doi     = {10.1037/met0000292},
+}
+
+@Article{pfister2024,
+  title   = {Consistency of {Bayes} Factor Estimates in {Bayesian} Analysis of Variance},
+  author  = {Roland Pfister},
+  journal = {Psychological Methods},
+  year    = {2024},
+  note    = {Advance online publication},
+  doi     = {10.1037/met0000703},
+}
+
+@Article{heck2022,
+  title   = {A Review of Applications of the {Bayes} Factor in Psychological Research},
+  author  = {Daniel W. Heck and Udo Boehm and Florian {B{\"o}ing-Messing} and Paul-Christian
+             B{\"u}rkner and Koen Derks and Zoltan Dienes and Qianrao Fu and Xin Gu
+             and Diana Karimova and Henk A. L. Kiers and Irene Klugkist
+             and Rebecca M. Kuiper and Michael D. Lee and Roger Leenders
+             and Hidde J. Leplaa and Maximilian Linde and Alexander Ly
+             and Marlyne {Meijerink-Bosman} and Mirjam Moerbeek and Joris Mulder
+             and Bence Palfi and Felix D. {Sch{\"o}nbrodt} and Jorge N. Tendeiro
+             and Don {van den Bergh} and Caspar J. {Van Lissa}
+             and Don {van Ravenzwaaij} and Wolf Vanpaemel and Eric-Jan Wagenmakers
+             and Donald R. Williams and {Mari{\"e}lle} {Zondervan-Zwijnenburg}
+             and Herbert Hoijtink},
+  journal = {Psychological Methods},
+  year    = {2022},
+  volume  = {28},
+  number  = {3},
+  pages   = {558--579},
+  doi     = {10.1037/met0000454},
+}
+
+@Article{stefan2021,
+  title   = {Practical Challenges and Methodological Flexibility in Prior Elicitation},
+  author  = {Angelika M. Stefan and Nathan J. Evans and Eric-Jan Wagenmakers},
+  journal = {Psychological Methods},
+  year    = {2021},
+  volume  = {27},
+  number  = {2},
+  pages   = {177--197},
+  doi     = {10.1037/met0000354},
+}
+
 % ---- Application: cognitive psychology accuracy data -------------------------
 
 @Article{oberauer2019,
@@ -262,6 +327,17 @@
   number  = {1},
   pages   = {40},
   doi     = {10.5334/joc.86},
+}
+
+@Article{oberauer2022,
+  title   = {The Importance of Random Slopes in Mixed Models for {Bayesian} Hypothesis Testing},
+  author  = {Klaus Oberauer},
+  journal = {Psychological Science},
+  year    = {2022},
+  volume  = {33},
+  number  = {4},
+  pages   = {648--665},
+  doi     = {10.1177/09567976211046884},
 }
 
 @Article{myerson2003,
@@ -401,4 +477,89 @@
   year          = {2020},
   eprint        = {2011.01808},
   archivePrefix = {arXiv},
+}
+
+% ---- Tier 3: identified as relevant but not cited ----------------------------
+% These papers were evaluated as candidates for citation. Uncomment and cite if
+% the corresponding topic is developed in a future revision.
+
+% van Erp, Mulder & Oberski (2018) -- prior sensitivity in default Bayesian SEM.
+% Relevant if expanding scope to SEM or drawing a cross-model comparison of how
+% default-prior sensitivity manifests outside GLMs.
+%
+% @Article{vanerp2018,
+%   title   = {Prior Sensitivity Analysis in Default {Bayesian} Structural Equation Modeling},
+%   author  = {Sara van Erp and Joris Mulder and Daniel L. Oberski},
+%   journal = {Psychological Methods},
+%   year    = {2018},
+%   volume  = {23},
+%   number  = {2},
+%   pages   = {363--388},
+%   doi     = {10.1037/met0000162},
+% }
+
+% Jeon & De Boeck (2017) -- decision qualities of BF vs p-value (Type I/II rates,
+% false-discovery rates). Relevant if adding a section that directly compares
+% matched-prior BFs to frequentist operating characteristics.
+%
+% @Article{jeon2017,
+%   title   = {Decision Qualities of {Bayes} Factor and $p$ Value-Based Hypothesis Testing},
+%   author  = {Minjeong Jeon and Paul De Boeck},
+%   journal = {Psychological Methods},
+%   year    = {2017},
+%   volume  = {22},
+%   number  = {2},
+%   pages   = {340--360},
+%   doi     = {10.1037/met0000140},
+% }
+
+% Hoijtink, Gu, Mulder & Rosseel (2018) -- BF computation with missing data.
+% Relevant if adding a section on missing-data robustness of matched-prior BFs.
+%
+% @Article{hoijtink2018missing,
+%   title   = {Computing {Bayes} Factors from Data with Missing Values},
+%   author  = {Herbert Hoijtink and Xin Gu and Joris Mulder and Yves Rosseel},
+%   journal = {Psychological Methods},
+%   year    = {2018},
+%   volume  = {24},
+%   number  = {2},
+%   pages   = {253--268},
+%   doi     = {10.1037/met0000187},
+% }
+
+% Haaf & Rouder (2017) -- order-restricted BF testing with Zellner-Siow g-priors
+% in Bayesian mixed models. Relevant if adding a section on informative hypothesis
+% testing or extending the g-prior tradition comparison to mixed-model settings.
+%
+% @Article{haaf2017,
+%   title   = {Developing Constraint in {Bayesian} Mixed Models},
+%   author  = {Julia M. Haaf and Jeffrey N. Rouder},
+%   journal = {Psychological Methods},
+%   year    = {2017},
+%   volume  = {22},
+%   number  = {4},
+%   pages   = {779--798},
+%   doi     = {10.1037/met0000156},
+% }
+
+% ---- Preprint / prior version ------------------------------------------------
+
+@Misc{frischkorn2026preprint,
+  title     = {How to Set Priors for Hypothesis Testing in Generalized Linear Models: {A} Three-Step Workflow with an Application to Binomial Models},
+  author    = {Gidon T. Frischkorn and Joscha Dutli and Philipp Musfeld and Klaus Oberauer},
+  year      = {2026},
+  doi       = {10.31234/osf.io/q7byw_v1},
+  url       = {https://doi.org/10.31234/osf.io/q7byw_v1},
+  note      = {Preprint},
+}
+
+% ---- Foundational statistics -------------------------------------------------
+
+@Book{casella2002,
+  title     = {Statistical Inference},
+  author    = {George Casella and Roger L. Berger},
+  year      = {2002},
+  edition   = {2nd},
+  publisher = {Duxbury},
+  address   = {Pacific Grove, CA},
 }

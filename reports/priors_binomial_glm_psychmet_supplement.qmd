@@ -647,3 +647,12 @@ re_pp_draws |>
   scale_y_discrete("Family") +
   prior_theme()
 ```
+
+## Session Information
+
+```{r}
+#| label: session-info
+#| echo: true
+
+sessionInfo()
+```

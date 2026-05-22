@@ -47,8 +47,8 @@ PriorsBinomial/
 │   └── 05_BFValidation_BridgeSampling.R    # Validate Savage-Dickey BFs vs bridge sampling
 │
 ├── reports/                        # Quarto documents (apaquarto format)
-│   ├── priors_binomial_glm_ampps.qmd           # Main manuscript
-│   ├── priors_binomial_glm_ampps_supplement.qmd # Supplementary materials
+│   ├── priors_binomial_glm_psychmet.qmd           # Main manuscript (targeting Psychological Methods)
+│   ├── priors_binomial_glm_psychmet_supplement.qmd # Supplementary materials
 │   └── references.bib              # BibTeX bibliography
 │
 ├── output/                         # Simulation outputs (gitignored; shared on OSF)
@@ -139,15 +139,15 @@ source("scripts/05_BFValidation_BridgeSampling.R")
 ### 3. Render the manuscript
 
 ```r
-quarto::quarto_render("reports/priors_binomial_glm_ampps.qmd")
-quarto::quarto_render("reports/priors_binomial_glm_ampps_supplement.qmd")
+quarto::quarto_render("reports/priors_binomial_glm_psychmet.qmd")
+quarto::quarto_render("reports/priors_binomial_glm_psychmet_supplement.qmd")
 ```
 
 Or from the terminal:
 
 ```bash
-quarto render reports/priors_binomial_glm_ampps.qmd
-quarto render reports/priors_binomial_glm_ampps_supplement.qmd
+quarto render reports/priors_binomial_glm_psychmet.qmd
+quarto render reports/priors_binomial_glm_psychmet_supplement.qmd
 ```
 
 The manuscript renders to HTML, PDF, and DOCX via the apaquarto format.
