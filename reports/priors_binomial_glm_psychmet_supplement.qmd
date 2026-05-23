@@ -18,6 +18,7 @@ author:
   - name: Klaus Oberauer
     affiliations:
       - name: University of Zurich
+floatsintext: true
 format:
   apaquarto-docx: default
   apaquarto-html: default
@@ -39,6 +40,8 @@ library(viridis)
 library(scales)
 library(here)
 library(knitr)
+
+options(knitr.table.format = function() if (knitr::is_latex_output()) "latex" else "pandoc")
 
 source(here("R", "link_functions.R"))
 source(here("R", "prior_sampling.R"))
@@ -93,7 +96,7 @@ The prior predictive simulation crossed the following factors:
 - **Effect prior family** ($b_1$): Normal, Logistic, Cauchy (3 levels)
 - **Effect prior SD** ($\mathrm{sd}_{b_1}$): 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 2.00 (10 levels)
 
-This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each condition, 10 replications of 10,000 draws were performed using the SimDesign package.
+This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each condition, we drew 10 replications of 10,000 samples using the SimDesign package.
 
 ### Bayes Factor Calibration (Step 3)
 
@@ -112,7 +115,7 @@ A separate random-effects simulation held fixed-effects priors at the recommende
 
 ### Information Consistency Simulation
 
-To demonstrate information consistency and Lindley consistency, a focused simulation was run with the matched Logistic(0, 0.25) prior. Data were generated under a between-subjects design: $N = 2 \times n_{\mathrm{subjects}}$ participants each contributing one binomial count from $n_{\mathrm{trials}}$ trials in a single condition ($x \in \{+1, -1\}$, sum-to-zero coded). Participant-level random intercepts were included in both data generation and model fitting. Information consistency is a property of the prior density at zero relative to posterior concentration around the true effect; it does not depend on the between- versus within-subjects structure of the design, and the results reported here are expected to generalise to within-subjects (repeated-measures) hierarchical models.
+To verify information consistency and Lindley consistency empirically, we ran a focused simulation with the matched Logistic(0, 0.25) prior. We generated data under a between-subjects design: $N = 2 \times n_{\mathrm{subjects}}$ participants each contributing one binomial count from $n_{\mathrm{trials}}$ trials in a single condition ($x \in \{+1, -1\}$, sum-to-zero coded). We included participant-level random intercepts in both data generation and model fitting. Information consistency is a property of the prior density at zero relative to posterior concentration around the true effect; it does not depend on the between- versus within-subjects structure of the design, and the results generalise to within-subjects (repeated-measures) hierarchical models.
 
 - **Intercept prior family**: Logistic (matched; $\mathrm{sd}_{b_0} = 0.75$)
 - **Effect prior family**: Logistic (matched; $\mathrm{sd}_{b_1} = 0.25$)
@@ -148,7 +151,7 @@ where $g > 0$ is a scalar hyperparameter (or mixture weight) and $I(\beta_0)$ is
 
 $$I(\beta_0) = X' W(\beta_0) X$$
 
-where $W(\beta_0) = \mathrm{diag}\!\left(p_i(\beta_0)\,[1 - p_i(\beta_0)]\right)$ and $p_i(\beta_0) = g^{-1}(x_i' \beta_0)$ are the predicted probabilities under the reference point $\beta_0$. The key consequence is that the g-prior covariance depends on the design matrix $X$ and on the weight matrix $W$, which is evaluated at predicted probabilities that vary with $\beta_0$, $X$, and the link function. This means:
+where $W(\beta_0) = \mathrm{diag}\!\left(p_i(\beta_0)\,[1 - p_i(\beta_0)]\right)$ and $p_i(\beta_0) = g^{-1}(x_i' \beta_0)$ are the predicted probabilities under the reference point $\beta_0$. The g-prior covariance therefore depends on the design matrix $X$ and the weight matrix $W$, evaluated at predicted probabilities that vary with $\beta_0$, $X$, and the link function. Two consequences follow:
 
 1. **The prior scale is design-dependent.** For two datasets with the same number of subjects but different predictor values or designs, the g-prior implies different prior scales on the coefficient scale, and therefore different implied distributions on the probability scale. No universal recommendation like "Logistic(0, 0.75)" is possible.
 
@@ -162,7 +165,7 @@ where $p_0 = g^{-1}(b_0)$ is the baseline probability. The g-prior for $b_1$ is 
 
 The matched prior's design-independence makes it straightforward to reason about and communicate: a researcher can state "I used Logistic(0, 0.25)" and a reader immediately knows the implied prior predictive distribution on the probability scale, regardless of the specific dataset. G-prior scale recommendations, by contrast, are necessarily conditional on the dataset structure.
 
-From a practical standpoint, g-priors are also not readily available in `brms` or Stan in an accessible form, limiting their uptake in the applied behavioral research community that these recommendations are aimed at.
+In practice, g-priors are not readily available in `brms` or Stan, which limits their uptake in applied behavioral research.
 
 ### Design-Dependent Scales: A Numerical Illustration
 
@@ -200,7 +203,7 @@ knitr::kable(
 )
 ```
 
-The g-prior SD ranges from `r min(gprior_table$sd_gprior)` to `r max(gprior_table$sd_gprior)` across these nine scenarios, spanning a threefold range. Notably, the g-prior is narrower than the matched prior (SD = 0.25) in the larger-sample, central-probability conditions, but wider in the smaller-sample or extreme-baseline conditions. Because there is no universal relationship between the g-prior scale and the matched prior scale, no single g-prior recommendation can substitute for the matched-prior approach.
+The g-prior SD ranges from `r min(gprior_table$sd_gprior)` to `r max(gprior_table$sd_gprior)` across these nine scenarios, spanning a threefold range. The g-prior is narrower than the matched prior (SD = 0.25) in larger-sample, central-probability conditions, but wider in smaller-sample or extreme-baseline ones. Because there is no universal relationship between the g-prior scale and the matched prior scale, no single g-prior recommendation can substitute for the matched-prior approach.
 
 ### Prior Predictive Implications of G-Priors
 
@@ -309,11 +312,11 @@ ggplot(gpp_data, aes(x = delta_p, colour = prior, fill = prior)) +
 
 ## Full Bayes Factor Calibration Results {#sec-full-bf-results}
 
-The main paper presents BF calibration results for a representative subset of conditions ($n_{\text{subjects}} = 30$, 20 trials, true $b_1 \in \{0, 0.10, 0.20\}$). This section provides the full results for the matched Logistic(0, 0.25) effect prior across all 5 true effect sizes, 3 sample sizes, and 2 trial counts.
+The main paper reports BF calibration results for a representative subset ($n_{\text{subjects}} = 30$, 20 trials, true $b_1 \in \{0, 0.10, 0.20\}$). Here we report the full results for the matched Logistic(0, 0.25) effect prior across all 5 true effect sizes, 3 sample sizes, and 2 trial counts.
 
 ### Detection Rates for the Matched Prior
 
-@tbl-bf-power shows detection rates ($P(\mathrm{BF}_{10} > 3)$) for the matched Logistic(0, 0.25) prior with a matched Logistic(0, 0.75) intercept prior. Under the null ($b_1 = 0$), the false-positive rate is well-controlled below 5% in all conditions. Detection rates increase with effect size and sample size as expected, and are substantially higher with 50 versus 20 trials per subject.
+@tbl-bf-power shows detection rates ($P(\mathrm{BF}_{10} > 3)$) for the matched Logistic(0, 0.25) prior with a matched Logistic(0, 0.75) intercept prior. Under the null ($b_1 = 0$), the false-positive rate stays below 5% in all conditions. Detection rates increase with effect size and sample size as expected, and are substantially higher with 50 versus 20 trials per subject.
 
 ```{r}
 #| label: tbl-bf-power
@@ -326,7 +329,7 @@ The main paper presents BF calibration results for a representative subset of co
 power_table <- summaries_bf |>
   filter(dist_b0 == "logistic", dist_b1 == "logistic", sd_b1 == 0.25) |>
   mutate(
-    col_label = paste0("n=", n_subjects, "\nT=", n_trials)
+    col_label = paste0("n=", n_subjects, " T=", n_trials)
   ) |>
   select(true_b1, col_label, P_BF10_gt3) |>
   mutate(P_BF10_gt3 = round(P_BF10_gt3, 2)) |>
@@ -391,7 +394,7 @@ ggplot(bf_heatmap_data,
 
 ## JZS/Cauchy Comparison: Full Results {#sec-jzs-full-results}
 
-This section provides the full detection-rate results for the JZS/Cauchy comparison simulation, supplementing the main paper's violin-plot figure. @tbl-S-jzs-power shows $P(\mathrm{BF}_{10} > 3)$ (power, i.e., detecting a true effect) and $P(\mathrm{BF}_{01} > 3)$ (false-null support, i.e., falsely concluding $H_0$ when a true effect is present) for both the matched Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
+@tbl-S-jzs-power gives full detection-rate results for the JZS/Cauchy comparison, supplementing the violin-plot figure in the main paper. It shows $P(\mathrm{BF}_{10} > 3)$ (power) and $P(\mathrm{BF}_{01} > 3)$ (false-null support) for both the matched Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
 
 ```{r}
 #| label: tbl-S-jzs-power
@@ -407,7 +410,7 @@ jzs_tbl <- readRDS(here("output", "bf_calibration_jzs_power_table.rds")) |>
   mutate(
     P_BF10_gt3 = round(P_BF10_gt3, 2),
     P_BF01_gt3 = round(P_BF01_gt3, 2),
-    col_label  = paste0("n=", n_subjects, "\nT=", n_trials)
+    col_label  = paste0("n=", n_subjects, " T=", n_trials)
   ) |>
   select(prior_label, true_b1, col_label, P_BF10_gt3, P_BF01_gt3) |>
   pivot_longer(c(P_BF10_gt3, P_BF01_gt3),
@@ -477,7 +480,7 @@ ggplot(jzs_continuous,
 
 ## Applied Example: Full Details {#sec-applied-details}
 
-This section provides additional details for the applied example in the main paper, including the full prior predictive check, posterior summary, and BF sensitivity analysis. The example uses data from @oberauer2019, Experiment 1 (simple span working memory task with 20 participants).
+We provide the prior predictive check, posterior summary, and sensitivity analysis for the applied example, using data from @oberauer2019, Experiment 1 (simple span working memory task with 20 participants).
 
 ### Prior Predictive Check
 
@@ -567,7 +570,7 @@ cat(sprintf("BF10 (Savage-Dickey) = %s\n",
 
 ### Sensitivity Analysis
 
-The figure below shows the Bayes factor as a function of the effect prior scale $\mathrm{sd}_{b_1} \in \{0.15, 0.25, 0.35\}$.
+@fig-S6-applied-sensitivity shows the Bayes factor as a function of the effect prior scale $\mathrm{sd}_{b_1} \in \{0.15, 0.25, 0.35\}$.
 
 ```{r}
 #| label: fig-S6-applied-sensitivity
