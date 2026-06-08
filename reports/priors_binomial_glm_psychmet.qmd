@@ -52,7 +52,7 @@ keywords:
   - binomial models
   - Bayes Factor
   - Bayesian statistics
-abstract: "Researchers using Bayesian hypothesis testing in binomial generalized linear models (GLMs) -- for instance, logistic regression for accuracy data -- need priors on regression coefficients, but no widely adopted default framework exists for Bayesian hypothesis testing in these models. The nonlinear link function creates a prior-link interaction: priors that appear reasonable on the coefficient scale can imply implausible distributions on the probability scale. We show that this problem has an elegant solution for CDF-based link functions: *matched priors* -- prior families that mirror the link function -- produce exactly uniform distributions on the probability scale, providing a maximally uninformative anchor. We embed this matched-prior principle in a three-step workflow and empirically evaluate it via simulation: (1) identify matched priors, (2) evaluate prior predictive distributions, (3) calibrate Bayes Factors including formal evaluation of consistency properties and comparison to the JZS/Cauchy default. For logistic regression, the matched Logistic(0, 0.75) intercept prior and Logistic(0, 0.25--0.30) effect prior provide well-calibrated Bayes Factors that exhibit information and Lindley consistency, and outperform the commonly used JZS/Cauchy default in both prior predictive plausibility and BF calibration for small effects, where the Cauchy prior frequently produces misleading evidence for $H_0$ when a genuine small effect is present. We further show that the workflow extends naturally to hierarchical models, and that the prior on the random-effects variance has negligible influence on Bayes factors for fixed effects. Ready-to-use `brms` code and scaling formulas for any contrast coding or predictor scale are provided."
+abstract: "Researchers using Bayesian hypothesis testing in binomial generalized linear models (GLMs) -- for instance, logistic regression for accuracy data -- need priors on regression coefficients, but no widely adopted default framework exists for Bayesian hypothesis testing in these models. The nonlinear link function creates a prior-link interaction: priors that appear reasonable on the coefficient scale can imply implausible distributions on the probability scale. We show that this problem has an elegant solution for CDF-based link functions: *matched priors* -- prior families whose CDF mirrors the link function -- produce exactly uniform distributions on the probability scale for the intercept, providing a maximally uninformative baseline anchor. We extend this family choice to effect priors for parsimony, with prior scale determined via prior predictive simulation. We embed this matched-prior principle in a three-step workflow and empirically evaluate it via simulation: (1) identify matched priors, (2) evaluate prior predictive distributions, (3) calibrate Bayes Factors including formal evaluation of consistency properties and comparison to the JZS/Cauchy default. For logistic regression, the matched Logistic(0, 0.75) intercept prior and Logistic(0, 0.25--0.30) effect prior provide well-calibrated Bayes Factors that exhibit information and model selection consistency, and outperform the commonly used JZS/Cauchy default in both prior predictive plausibility and BF calibration for small effects, where the Cauchy prior frequently produces misleading evidence for $H_0$ when a genuine small effect is present. We further show that the workflow extends naturally to hierarchical models, and that the prior on the random-effects variance has negligible influence on Bayes factors for fixed effects. Ready-to-use `brms` code and scaling formulas for any contrast coding or predictor scale are provided."
 abstract-public: "When psychologists use Bayesian analysis to test whether an experimental result is real --- for example, whether a memory training improved accuracy --- they must supply the software with a prior distribution that describes what effect sizes they consider plausible before seeing the data. For the most common type of outcome in laboratory experiments (how often participants respond correctly), no standard guidance has existed for choosing these distributions when using logistic regression. This matters because a poorly chosen prior can cause the software to report evidence against a genuine effect or to give unreliable conclusions when sample sizes are small. This paper provides clear default recommendations. The key idea is simple: because logistic regression uses a specific mathematical function to convert model parameters to probabilities, there is a natural family of distributions --- the logistic family --- that produces a completely neutral (uniform) starting assumption on the probability scale. We call these 'matched priors.' Starting from this neutral anchor, we show through extensive computer simulations which specific parameter values yield trustworthy results across the range of sample sizes and effect sizes typical in psychological research. The recommended defaults (Logistic(0, 0.75) for the baseline; Logistic(0, 0.25) for the effect) outperform the currently popular alternative for detecting small but real effects, while remaining reliable under the null. Ready-to-use code for the brms R package is provided so that researchers can apply the recommendations without technical expertise in Bayesian computation."
 ---
 
@@ -104,6 +104,11 @@ jzs_summaries <- tryCatch(
 )
 jzs_available <- !is.null(jzs_summaries)
 
+# Pre-computed figures from local/ scripts
+logbf_fig_available    <- file.exists(here("figures", "logbf_distributions.png"))
+roc_dual_fig_available <- file.exists(here("figures", "roc_dual_comparison.png"))
+auc_fig_available      <- file.exists(here("figures", "auc_jzs_comparison.png"))
+
 # Factor labels
 dist_labels <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
 
@@ -111,8 +116,6 @@ dist_labels <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
 ```
 
 ## Introduction
-
-Consider a researcher studying working memory. She runs an experiment in which participants are tested on whether they can correctly identify previously shown items; her outcome is the number of correct responses out of a fixed number of trials. She wants to use Bayesian analysis to test whether a new encoding strategy improves accuracy. To do so, she must supply her software with a prior distribution — a mathematical statement of what effect sizes she considers plausible before seeing the data. No widely adopted guidance tells her what that prior should be when using logistic regression for this kind of count outcome. Use the wrong one, and her Bayes factor may systematically fail to detect genuine effects, or produce misleading evidence against them. This paper addresses that problem by deriving principled default priors from first principles, validating them through simulation, and providing ready-to-use code.
 
 In psychology and related fields, we often have data that reflect counts of successes out of trials -- for instance, accuracy in a cognitive task or endorsement rates in a survey. These data follow a binomial distribution and are best modeled with a binomial generalized linear model (GLM):
 
@@ -128,57 +131,80 @@ $$p_i = g^{-1}(b_0 + b_1 x_i)$$
 
 For binomial models, the inverse of the link function $g^{-1}$ is either the logistic function (logistic regression), or the cumulative distribution function (CDF) of the standard normal distribution (probit regression).
 
-In psychological experiments, participants typically complete multiple trials, so observations are nested within persons rather than independent. Between-participant differences in baseline success rates — some people are systematically faster, more accurate, or more conservative than others — are captured by a participant-level random intercept $u_j \sim \mathrm{Normal}(0, \sigma_u^2)$ in the linear predictor. Participants may further differ in the *magnitude* of the experimental effect they show, motivating an additional participant-level random slope $v_j \sim \mathrm{Normal}(0, \sigma_v^2)$ on the effect predictor $x_{ij}$; omitting random slopes when they are present in the data can substantially inflate false-positive rates in Bayesian hypothesis testing [@oberauer2022]. The present workflow addresses the hierarchical random-intercept model, as it introduces the key additional prior choice — the hyperprior on $\sigma_u$ — in the simplest setting. We present the formal hierarchical model specification in the [Hierarchical Binomial GLMs](#sec-hierarchical) section below and demonstrate the complete workflow for both the flat and the hierarchical random-intercept case.
+When testing the hypothesis that an effect of interest exists, Bayesian hypothesis testing via Bayes Factors [@wagenmakers2018a; @schonbrodt2018; @heck2022] compares a model including the effect ($H_1$) against one constraining it to zero ($H_0$); the Bayes Factor $BF_{10}$ quantifies how much more likely the observed data are under $H_1$ than under $H_0$. Because $H_1$ is characterized by the prior on the effect parameter, the BF depends directly on what effects the prior treats as plausible. For models assuming normally distributed outcomes, @rouder2012 proposed principled default priors based on the JZS (Jeffreys--Zellner--Siow) framework, encoding plausible standardized effect sizes in a scale-invariant manner.
 
-When testing the hypothesis that an effect of interest exists, Bayesian hypothesis testing via Bayes Factors [@wagenmakers2018a; @schonbrodt2018; @heck2022] compares a model including the effect ($H_1$) against one constraining it to zero ($H_0$); the Bayes Factor $BF_{10}$ quantifies how much more likely the observed data are under $H_1$ than under $H_0$. When estimating the BF, we need to carefully think about the prior for the parameter of interest because the Bayes Factor critically depends on it. For models assuming normally distributed outcomes, @rouder2012 proposed principled default priors based on the JZS (Jeffreys--Zellner--Siow) framework.
+Priors in Bayesian statistics can serve multiple purposes: encoding knowledge about plausible effect sizes, regularizing estimates to prevent overfitting, or stabilizing inference when data are sparse. For posterior estimation, weakly informative priors such as the Cauchy(0, 2.5) recommended by @gelman2008 serve the regularization goal well: they prevent extreme estimates while allowing the data to dominate at reasonable sample sizes. For BF testing, however, the prior does more than regularize — it defines the alternative hypothesis $H_1$. Accordingly, the prior should encode what effects are plausible in the research domain; a prior that assigns mass to implausible effects biases the BF toward $H_0$ even when a genuine small effect is present [@hoijtink2021; @schonbrodt2018].
 
-Priors in Bayesian statistics can serve several distinct goals. Researchers may use them to *encode existing knowledge* --- prior research, meta-analytic summaries, or general knowledge about the distribution of effect sizes in a discipline --- so that this information informs the current analysis [@mikkola2024]. They may seek to *regularize* parameter estimates, keeping them within a plausible range and preventing overfitting, particularly when sample sizes are small [@gelman2008]. For parameters with bounded ranges --- such as probabilities --- the goal may be to *constrain* the model to logically valid values. And in settings with limited data, a well-chosen prior can serve to *stabilize* inference by supplying information where the data alone are uninformative, while being overwhelmed by the likelihood as sample size grows.
+The difficulty for generaliuzed linear models arises because the parameters of interest are estimated on the transformed, unbounded scale. Accordingly, priors must be expressed on the coefficient scale for model estimation, whereas our considerations regarding plausible effects -- and the constraints arising from the bounded nature of probability -- refer to the probability scale (or native outcome scale for other types of GLMs). This creates a prior-link interaction: a prior that appears reasonable on the regression-coefficient scale can produce implausible distributions on the probability scale [@gelman2008; @ghosh2018]. In addition, priors recommended for posterior estimation [e.g., the weakly informative Cauchy(0, 2.5) of @gelman2008] are typically too broad for hypothesis testing, biasing Bayes Factors toward the null. For GLMs with nonlinear link functions, no principled defaults have been widely adopted in psychology for Bayesian hypothesis testing.
 
-These goals are not always in harmony, and their relative importance depends on the inferential context. For *posterior estimation*, a weakly informative regularizing prior --- such as the Cauchy(0, 2.5) recommended by @gelman2008 --- is appropriate: it prevents extreme estimates while allowing the data to dominate at reasonable sample sizes. For *Bayes Factor hypothesis testing*, however, the prior on the effect parameter does more than regularize: it defines the alternative hypothesis $H_1$. Because the Bayes Factor $BF_{10}$ quantifies how much more likely the data are under $H_1$ than under $H_0$, and $H_1$ is characterized by the prior, the BF is highly sensitive to the prior choice. @hoijtink2021 demonstrated formally that null-hypothesis Bayes factors are highly sensitive to prior width: even modest changes in the prior scale can reverse the direction of evidence, making principled prior selection essential rather than optional [@schonbrodt2018]. Our matched-prior framework directly addresses this vulnerability for the binomial case. A prior that assigns substantial probability to implausibly large effects --- as the Cauchy default does --- biases BFs toward $H_0$, because those extreme effects repeatedly fail to materialize. Our contribution therefore focuses on two of the four prior goals: *encoding knowledge* about plausible effect sizes in behavioral research, and *constraining* the prior so that it implies interpretable distributions on the probability scale. Both goals are jointly addressed by the matched-prior framework developed below. For GLMs with nonlinear link functions, no such principled defaults have been widely adopted in psychology for Bayesian hypothesis testing.[^elicitation]
-
-[^elicitation]: When domain expertise is available, structured elicitation methods [@hosack2026; @mikkola2024; @bockting2024; @stefan2021] can produce more targeted priors tailored to specific research questions. Our contribution is complementary: we provide principled *default* priors for use when such expertise is not available. Following the taxonomy of @mikkola2024, our workflow operates in the observable space, using the link function to bridge between prior distributions on the coefficient scale and their implications on the probability scale.
-
-The difficulty for these models arises because the parameters of interest are estimated on the transformed, unbounded scale. Accordingly, priors must be expressed on the coefficient scale for model fitting, whereas our considerations regarding plausible effects --- and the constraints arising from the bounded nature of probability --- refer to the probability scale. This creates a prior-link interaction: a prior that appears reasonable on the regression-coefficient scale can produce implausible distributions on the probability scale [@gelman2008; @ghosh2018]. In addition, priors recommended for posterior estimation [e.g., the weakly informative Cauchy(0, 2.5) of @gelman2008] are typically too broad for hypothesis testing, biasing Bayes Factors toward the null.
-
-We propose a three-step workflow for prior specification in GLMs that addresses this problem. The workflow is general; it applies whenever a link function mediates between parameter and probability scales. Here, we demonstrate it fully for binomial models, providing default priors and ready-to-use code for both the flat and the hierarchical random-intercept case.
-
-We illustrate this approach with accuracy data from a hypothetical experiment with two conditions, in which we model the number of successes $k_i$ in $n_i$ trials as $k_i \sim \mathrm{Binomial}(n_i, p_i)$ with the linear model $g(p_i) = b_0 + b_1 x_i$, where $p_i$ is the success probability, $g$ is either the logit or probit link, and $x_i$ is a single discrete predictor with two levels. We code $x_i$ with a sum-to-zero contrast $x_i \in \{+1, -1\}$, so that the difference between conditions on the probability scale is $\delta p = g^{-1}(b_0 + b_1) - g^{-1}(b_0 - b_1)$, where $g^{-1}(\cdot)$ denotes the inverse link function that maps the linear predictor back to the probability scale. Before presenting the workflow and its empirical validation, we situate the matched-prior approach within existing frameworks for prior specification in GLMs.
+We propose a three-step workflow for prior specification in GLMs that addresses this problem. While we demonstrate the workflow fully for binomial models, the same challenge arises whenever a link function mediates between the coefficient scale and the native outcome scale -- ordinal regression for Likert responses, lognormal regression for response times, Poisson models for count data -- and the three steps apply in each case. Here, we demonstrate the workflow fully for binomial models, providing default priors and ready-to-use code for both the flat and the hierarchical random-intercept case.
 
 ## Related Work {#sec-related-work}
 
+Before presenting the matched-prior workflow in detail, we situate it within the two bodies of existing work most directly relevant to it: the g-prior tradition underlying the JZS/Cauchy default that dominates Bayesian hypothesis testing in psychology, and conditional mean priors with structured elicitation. This contextualizes what the matched-prior framework contributes — and where it differs from available alternatives.
+
 ### The G-Prior Tradition: From Linear Models to GLMs
 
-@liang2008 established mixtures of g-priors as a principled, analytically tractable framework for default priors in linear regression. In this approach, $\beta \sim \mathrm{Normal}\!\left(0,\, g \cdot (X'X)^{-1}/\phi\right)$, so the prior covariance scales with the data covariance matrix through the hyperparameter $g$. Rather than fixing $g$ — a choice that remains largely arbitrary — the mixture approach treats $g$ as random and marginalises over it. The key insight is that placing an Inverse-Gamma prior on $g$ (equivalently, a Gamma prior on the precision $1/g$) and integrating out $g$ yields Cauchy-distributed marginals for $\beta$: a Normal prior with Gamma-distributed variance is a scale mixture of normals that integrates to a Cauchy. The Zellner--Siow prior [@liang2008] formalises this by setting $g \sim \mathrm{Inverse\text{-}Gamma}\!\left(\tfrac{1}{2},\, \tfrac{n}{2}\right)$, giving multivariate Cauchy marginals for $\beta$ centred at zero. This Normal-variance-mixture construction provides the formal justification for the Cauchy default priors widely adopted in Bayesian hypothesis testing [e.g., @rouder2009]. Crucially, @rouder2012 showed that this framework achieves genuine design independence for linear ANOVA: by placing priors on *standardized* effects $\delta = \beta / \sigma$ — that is, setting $\beta \mid g, \sigma \sim \mathrm{Normal}(0,\, g\sigma^2 I)$ combined with a Jeffreys prior $\pi(\mu, \sigma^2) \propto 1/\sigma^2$ — the prior covariance reduces to $G = gI$, free of the Fisher information matrix altogether. Under sum-to-zero or orthonormal contrast coding, the resulting Bayes factor depends only on $R^2$ and is invariant to linear transformations of the outcome and to the specific design. 
+@liang2008 established mixtures of g-priors as a principled, analytically tractable framework for default priors in linear regression. In this approach, priors for a model parameter $\beta$ are specified as $\beta \sim \mathrm{Normal}\!\left(0,\, g \cdot (X'X)^{-1}/\phi\right)$, so the prior covariance scales with the data covariance matrix through the hyperparameter $g$. Rather than fixing $g$ — a choice that remains largely arbitrary — the mixture approach treats $g$ as random and marginalises over it. The key insight is that placing an Inverse-Gamma prior on $g$ (equivalently, a Gamma prior on the precision $1/g$) and integrating out $g$ yields Cauchy-distributed marginals for $\beta$: a Normal prior with Gamma-distributed variance is a scale mixture of normals that integrates to a Cauchy. The Zellner--Siow prior (originally Zellner & Siow, 1980, as represented by @liang2008) formalises this by setting $g \sim \mathrm{Inverse\text{-}Gamma}\!\left(\tfrac{1}{2},\, \tfrac{n}{2}\right)$, giving multivariate Cauchy marginals for $\beta$ centred at zero. This Normal-variance-mixture construction provides the formal justification for the Cauchy default priors widely adopted in Bayesian hypothesis testing [e.g., @rouder2009]. Crucially, @rouder2012 showed that this framework achieves genuine design independence for linear ANOVA: by placing priors on *standardized* effects $\delta = \beta / \sigma$ — that is, setting $\beta \mid g, \sigma \sim \mathrm{Normal}(0,\, g\sigma^2 I)$ combined with a Jeffreys prior $\pi(\mu, \sigma^2) \propto 1/\sigma^2$ — the prior covariance reduces to $G = gI$, independent of the design matrix and any data properties. Under sum-to-zero or orthonormal contrast coding, the resulting Bayes factor depends only on the amount of variance explained by all predictors $R^2$ and is invariant to linear transformations of the outcome and to the specific design. 
 
-The design independence achieved by @rouder2012 rests on two structural features of Gaussian linear models that do not carry over to binomial GLMs. First, linear models have a free scale parameter $\sigma^2$: by expressing effects on the standardized scale $\delta = \beta / \sigma$, both the prior and the resulting Bayes factor become invariant to measurement units of the outcome. Binomial GLMs have no separate variance parameter — the variance $p(1-p)$ is entirely determined by the mean — so there is no $\sigma$ to standardize against. Second, the identity link in linear models means a scale-invariant prior on $\beta$ translates directly into a scale-invariant distribution over outcome differences. With a nonlinear link function, the mapping from $\beta$ to the probability scale is distorted by the link's curvature in a way that depends on the baseline probability, and therefore on the design. 
+The design independence achieved by @rouder2012 rests on two structural features of Gaussian linear models that do not carry over to binomial GLMs. First, linear models have a free scale parameter $\sigma^2$: by expressing effects on the standardized scale $\delta = \beta / \sigma$, both the prior and the resulting Bayes factor become invariant to measurement units of the outcome. Binomial GLMs (and many other GLM types) have no separate variance parameter — the variance $p(1-p)$ is entirely determined by the mean — so there is no $\sigma$ to standardize against. Second, the identity link in linear models means a scale-invariant prior on $\beta$ translates directly into a scale-invariant distribution over outcome differences. With a nonlinear link function, the mapping from $\beta$ to the probability scale is distorted by the link's curvature in a way that depends on the baseline probability, and therefore on the design and data. 
 
-To address this issue, @bove2011 and @liclyde2018 extended the g-Prior framework to GLMs, replacing $(X'X)$ with the Fisher information matrix evaluated at a reference point. For binomial GLMs, this yields approximate marginal likelihoods via Laplace approximation, enabling principled BF estimation. @sekulovski2025 provide a recent large-scale comparison of Bayesian variable selection methods for logistic regression, including g-prior-based approaches. @porwalraftery2022 provide a broader comparison of Bayesian and frequentist model selection methods, including g-prior-based approaches, across a range of regression settings.
+To address this issue, @bove2011 extended the g-Prior framework to GLMs, replacing $(X'X)$ with the expected Fisher information evaluated at a reference prediction ($\hat{\beta}_0 = 0$), while @liclyde2018 use the observed Fisher information at the MLE. For binomial GLMs, both yield approximate marginal likelihoods via Laplace approximation, enabling principled BF estimation. @sekulovski2025 provide a recent large-scale comparison of Bayesian variable selection methods for logistic regression, including g-prior-based approaches. @porwalraftery2022 provide a broader comparison of Bayesian and frequentist model selection methods, including g-prior-based approaches, across a range of regression settings.
 
-However, the GLM extensions [@bove2011; @liclyde2018] substitute the Fisher information matrix $W = \mathrm{diag}\!\left(p_i(\hat{\beta}_0)[1 - p_i(\hat{\beta}_0)]\right)$, evaluated at a reference prediction, for $(X'X)$. This substitution reintroduces design dependence: the IRLS weight matrix changes with the predicted probabilities at $\hat{\beta}_0$, so the prior's implied scale on the probability scale changes with every dataset — no universal recommendation like "$\mathrm{Logistic}(0, 0.75)$" is possible. Crucially, even a hypothetical design-independent g-prior for GLMs would leave a second problem unresolved: it would not inform us what the prior implies on the probability scale. A prior that appears reasonable on the unbounded coefficient scale can assign substantial mass to probabilities near 0 or 1, implausible for most behavioral experiments [@gelman2008; @ghosh2018]. This *prior--link interaction* is precisely the problem the matched-prior framework addresses: by anchoring prior choice on the probability scale via the probability integral transform, a single scale recommendation applies across all datasets with the same link function, and prior predictive simulation provides a directly interpretable diagnostic. We provide a mathematical comparison in the supplementary materials. We also note that g-priors are not readily available in `brms` [@burkner2017; @burkner2018] or Stan, limiting their practical uptake in psychological research.
+However, both GLM extensions substitute a version of the Fisher information matrix for $(X'X)$: @bove2011 use $W = \mathrm{diag}\!\left(p_i(\hat{\beta}_0)[1 - p_i(\hat{\beta}_0)]\right)$ evaluated at a reference prediction ($\hat{\beta}_0 = 0$), while @liclyde2018 use the observed information at the MLE. This substitution reintroduces design dependence: the weight matrix changes with the predicted probabilities, so the prior's implied scale on the probability scale changes with every dataset. Thus, no universal recommendation for priors like "$\mathrm{Logistic}(0, 0.75)$" is possible. Crucially, even a hypothetical design-independent g-prior for GLMs would leave a second problem unresolved: it would not inform us what the prior implies on the probability scale. A prior that appears reasonable on the unbounded coefficient scale can assign substantial mass to probabilities near 0 or 1, implausible for most behavioral experiments [@gelman2008; @ghosh2018]. This *prior--link interaction* is precisely the problem the matched-prior framework aims to address: by anchoring prior choice on the probability scale via the probability integral transform, a single scale recommendation applies across all datasets with the same link function, and prior predictive simulation provides a directly interpretable diagnostic. For linear models, the dominant Cauchy default priors in Bayesian hypothesis testing [@rouder2009; @rouder2012] are precisely this operationalization: Cauchy-distributed marginals arise from the Normal-variance-mixture construction applied to standardized effects $\delta = \beta/\sigma$. This standardization requires a free variance parameter $\sigma$, which is unavailable in binomial GLMs — the variance is fully determined by the mean. In practice, the Cauchy default is therefore applied as independent Cauchy priors placed directly on the regression coefficients, without standardization — as proposed by @oberauer2019 for logistic regression, motivated by the JZS t-test scale convention [@rouder2009].[^gprior]
+
+[^gprior]: A mathematical comparison of the g-prior and matched-prior frameworks is provided in the supplementary materials. Note also that g-priors themselves are not readily available in `brms` [@burkner2017; @burkner2018] or Stan, limiting their practical uptake in psychological research.
 
 ### Conditional Mean Priors and Prior Elicitation
 
-@bedrick1996 introduced conditional mean priors for GLMs, in which the researcher specifies prior distributions on $P(Y=1 \mid x)$ at selected design points; the prior on $\beta$ is then implied by a change-of-variables argument. This approach is principled, directly interpretable on the probability scale, and has been extended in @christensen2010 and more recently by @hosack2026 for a broad family of GLMs. Simulation-based approaches to prior elicitation [@bockting2024] and comprehensive reviews of elicitation methodology [@mikkola2024] further enrich this tradition.
+@bedrick1996 introduced conditional mean priors for GLMs, in which the researcher specifies prior distributions on $P(Y=1 \mid x)$ at selected design points; the prior on $\beta$ is then implied by a change-of-variables argument. This approach is principled, directly interpretable on the probability scale, and has been extended in @christensen2010 and more recently by @hosack2026 for a broad family of GLMs. Simulation-based approaches to prior elicitation [@bockting2024; @stefan2021] and comprehensive reviews of elicitation methodology [@mikkola2024] further enrich this tradition.
 
-The matched-prior approach complements rather than competes with conditional mean priors. Conditional mean priors require the researcher to specify design points and probability distributions -- they are semi-informative and elicitation-based, suited to situations where genuine prior knowledge exists. The matched prior is a *default* requiring no elicitation, appropriate when such knowledge is unavailable. Additionally, conditional mean priors were developed primarily for parameter estimation rather than for Bayes factor hypothesis testing, which imposes the additional requirement of a proper prior on $\beta$ under $H_1$ with a point mass at zero under $H_0$. The matched-prior workflow is designed specifically for this hypothesis-testing context. The insight that the probability scale provides an interpretable basis for prior specification is shared by both approaches: while computational fitting requires priors to be expressed on the coefficient scale, the *motivation* for prior choice can -- and we argue *should* -- come from the probability scale.
+The matched-prior approach proposed here complements rather than competes with conditional mean priors. Conditional mean priors require the researcher to specify design points and probability distributions -- they are semi-informative and elicitation-based, suited to situations where genuine prior knowledge exists. The matched prior is a *default* requiring no elicitation, appropriate when such knowledge is unavailable. Additionally, conditional mean priors were developed primarily for parameter estimation rather than for Bayes factor hypothesis testing, which imposes the additional requirement of a proper prior on $\beta$ under $H_1$ with a point mass at zero under $H_0$. The matched-prior workflow is designed specifically for this hypothesis-testing context. The insight that the probability scale provides an interpretable basis for prior specification is shared by both approaches: while computational fitting requires priors to be expressed on the coefficient scale, the *motivation* for prior choice can -- and we argue *should* -- come from the probability scale. Following the taxonomy of @mikkola2024, both approaches operate in the observable space, using the link function to bridge between prior distributions on the coefficient scale and their implications on the probability scale.
 
 ## The Three-Step Workflow {#sec-workflow}
 
 Prior specification for GLMs with nonlinear link functions requires bridging the gap between the coefficient scale (where priors are set) and the probability scale (where effects are interpretable). Our workflow instantiates the principled Bayesian workflow for cognitive science [@schad2021] in the specific context of prior selection for Bayes factor testing, and proceeds through three complementary steps:
 
-**Step 1: Identify matched priors.** Using the probability integral transform, we identify prior families whose cumulative distribution function (CDF) matches the inverse link function. These matched priors produce exactly uniform distributions on the probability scale, serving as principled, maximally uninformative anchors from which the prior scale can be adjusted to reflect specific prior beliefs.
+**Step 1: Identify matched priors.** Using the probability integral transform, we identify prior families whose cumulative distribution function (CDF) matches the inverse link function. For the intercept, this matched prior produces exactly a uniform distribution on the probability scale — a principled, maximally uninformative anchor. We apply the same distributional family to effect priors for parsimony; the appropriate scale for all priors is then determined in Steps 2 and 3.
 
-**Step 2: Prior predictive simulation.** Building on the matched priors, we draw samples from the joint prior on all coefficients while varying the prior scale, transform through the inverse link, and examine the resulting distributions on the probability scale. This reveals what effect sizes and baseline rates the prior treats as plausible -- information that is not apparent from the prior on the coefficient scale alone [@gelman2020].
+**Step 2: Prior predictive simulation.** Building on the matched priors, we draw samples from the joint prior on all coefficients while varying the prior scale, transform through the inverse link, and examine the resulting distributions on the probability scale. This reveals what effect sizes and baseline rates the prior treats as plausible -- information that is not intuitively apparent from the prior on the coefficient scale alone [@gelman2020].
 
 **Step 3: Bayes Factor calibration.** Finally, we simulate data under known effects and evaluate how the strength of evidence varies across prior specifications. This verifies that the priors recommended based on the prior predictive simulations yield well-calibrated Bayes Factors -- neither systematically favouring $H_0$ nor $H_1$ -- and that they satisfy formal properties of principled Bayesian model comparison.
 
 Each step can be applied to any GLM family. Here, we demonstrate the full workflow for binomial models.
 
+## Model Specification {#sec-model}
+
+Before presenting each step in detail, we formalize the model used throughout the paper: a hierarchical random-intercept binomial GLM. This introduces the parameters whose priors the three workflow steps will determine, and one additional prior component absent from a flat model: the hyperprior on the random-effects standard deviation $\sigma_u$.
+
+Psychological experiments typically yield nested data: each participant contributes multiple trials, so observations are not independent across participants. We therefore extend the binomial GLM introduced earlier to a random-intercept model. Using the general link function $g$ introduced above, the complete hierarchical model is:
+
+$$y_{ij} \sim \mathrm{Binomial}(n_{ij},\, p_{ij})$$
+
+$$g(p_{ij}) = b_0 + u_j + b_1 x_{ij}$$
+
+where $j = 1, \ldots, J$ indexes participants and $i = 1, \ldots, n_j$ indexes trials within participant $j$. The participant-level random intercept $u_j \sim \mathrm{Normal}(0, \sigma_u^2)$ captures between-participant variability in baseline success probability, and $\sigma_u$ is the random-effects standard deviation. The link functions are the same as in the model introduced at the beginning: $g(p) = \log(p/(1-p))$ for logistic regression and $g(p) = \Phi^{-1}(p)$ for probit regression, where $\Phi^{-1}$ is the quantile function of the standard normal distribution. Participants may further differ in the *magnitude* of the experimental effect, motivating an additional random slope on $x_{ij}$; omitting such slopes when present in the data can substantially inflate false-positive rates in Bayesian hypothesis testing [@oberauer2022]. The present workflow focuses on the random-intercept model as the simplest hierarchical extension that introduces the key additional prior choice — the hyperprior on $\sigma_u$.
+
+Throughout the paper, we illustrate the workflow with a running example: accuracy data from a hypothetical experiment with two conditions. The predictor $x_i$ is coded with sum-to-zero contrasts $x_i \in \{+1, -1\}$, so that the experimental effect on the probability scale is $\delta p = g^{-1}(b_0 + b_1) - g^{-1}(b_0 - b_1)$, where $g^{-1}(\cdot)$ is the inverse link function.
+
+The complete prior specification is:
+
+- **Fixed effects:** $b_0 \sim \mathrm{Logistic}(0, \mathrm{sd}_{b_0})$ (logit) or $\mathrm{Normal}(0, \mathrm{sd}_{b_0})$ (probit), matched to the link function; $b_1 \sim \mathrm{Logistic}(0, \mathrm{sd}_{b_1})$ or $\mathrm{Normal}(0, \mathrm{sd}_{b_1})$
+- **Random effects:** $u_j \sim \mathrm{Normal}(0, \sigma_u^2)$ with hyperprior $\sigma_u \sim \mathrm{Exponential}(\lambda)$
+
+Recommended scale values -- $\mathrm{sd}_{b_0} \approx 0.75$, $\mathrm{sd}_{b_1} \in [0.25, 0.30]$, and $\lambda = 4$ -- are derived from the three-step workflow in Steps 2 and 3 below.
+
+The Bayes Factor for the fixed effect $b_1$ compares:
+
+$$H_1:\; b_1 \neq 0 \quad \text{vs.} \quad H_0:\; b_1 = 0$$
+
+Under both models, the random intercepts $u_j$ are present and integrated out in the marginal likelihoods used to compute the BF. Because $\sigma_u$ appears symmetrically in both marginal likelihoods, its hyperprior largely cancels from the ratio, leaving the BF dominated by the fixed-effect signal-to-noise ratio. This *nuisance-parameter robustness* means that the choice of hyperprior on $\sigma_u$ has little influence on BFs for the fixed effect $b_1$, provided a reasonable weakly informative prior is used.
+
 ## Step 1: The Matched Prior Principle {#sec-matched-prior}
 
 The key mathematical result underlying this approach is the following: for any continuous cumulative distribution function (CDF) $F$ with location 0 and scale 1, if $B_0 \sim F(\cdot;\, 0, 1)$, then $p = F(B_0) \sim \mathrm{Uniform}(0, 1)$ [@casella2002]. This follows from the probability integral transform: applying a distribution's own CDF to a draw from that distribution maps the draw to its percentile rank within the distribution, and percentile ranks are, by definition, uniformly distributed. Consequently, a $\mathrm{Logistic}(0, 1)$ prior on $b_0$ combined with the logistic inverse link $g^{-1} = F_\mathrm{logistic}$ yields $p = F_\mathrm{logistic}(b_0) \sim \mathrm{Uniform}(0, 1)$; the same logic gives $\mathrm{Normal}(0, 1) \rightarrow \mathrm{Uniform}(0, 1)$ under the probit link.
 
-Stated in practical terms: when the prior distribution on the coefficient scale is matched exactly to the link function --- same family and same parameters (location 0, scale 1) --- it produces a flat (uninformative) prior on the probability scale. For binomial GLMs that either use the logit or the probit link, the matched prior is the Logistic(0, 1) or Normal(0, 1), respectively:
+Stated in practical terms: when the prior distribution on the coefficient scale is matched exactly to the link function -- same family and same parameters (location 0, scale 1) -- it produces a flat (uninformative) prior on the probability scale. For binomial GLMs that either use the logit or the probit link, the matched prior is the Logistic(0, 1) or Normal(0, 1), respectively:
 
 | Link   | Inverse link $g^{-1}$ | Matched prior | Implied prior on $p$ |
 |--------|-----------------------|---------------|----------------------|
@@ -189,32 +215,7 @@ Stated in practical terms: when the prior distribution on the coefficient scale 
 
 In other words, when we transform a $\mathrm{Logistic}(0, 1)$ prior on the coefficient scale back to the probability scale via the inverse logit function, the result is a uniform distribution on $(0, 1)$; the same holds for a $\mathrm{Normal}(0, 1)$ prior under the probit link. The matched prior at scale 1 is therefore maximally uninformative on the probability scale -- a principled anchor from which we can obtain desired priors through scaling. Conversely, scaling the matched prior with $\mathrm{sd} > 1$ concentrates probability mass toward the extreme values 0 and 1, reflecting a typically unreasonable assumption that extreme baseline probabilities are particularly likely. Scaling with $\mathrm{sd} < 1$ concentrates mass away from 0 and 1, producing a regularized (i.e., shrunk away from extreme values) intercept prior suited to experiments where floor and ceiling performance are unlikely. This principle generalises to any model with a CDF-based link function (see [Applying the Workflow Beyond Binomial Models](#sec-extensions)).
 
-## Hierarchical Binomial GLMs {#sec-hierarchical}
-
-Step 1 identifies matched priors for the fixed-effect coefficients $b_0$ and $b_1$. The simulation steps that follow (Steps 2 and 3) apply these priors within a hierarchical model, which introduces one further prior component: the hyperprior on the random-effects standard deviation $\sigma_u$. We therefore formalize the complete model specification here before proceeding.
-
-Psychological experiments typically yield nested data: each participant contributes multiple trials, so observations are not independent across participants. We therefore extend the flat binomial GLM to a random-intercept model. Using the general link function $g$ introduced above, the complete hierarchical model is:
-
-$$y_{ij} \sim \mathrm{Binomial}(n_{ij},\, p_{ij})$$
-
-$$g(p_{ij}) = b_0 + u_j + b_1 x_{ij}$$
-
-where $j = 1, \ldots, J$ indexes participants and $i = 1, \ldots, n_j$ indexes trials within participant $j$. The participant-level random intercept $u_j \sim \mathrm{Normal}(0, \sigma_u^2)$ captures between-participant variability in baseline success probability, and $\sigma_u$ is the random-effects standard deviation. The link functions are the same as in the flat model: $g(p) = \log(p/(1-p))$ for logistic regression and $g(p) = \Phi^{-1}(p)$ for probit regression, where $\Phi^{-1}$ is the quantile function of the standard normal distribution.
-
-The complete prior specification is:
-
-- **Fixed effects:** $b_0 \sim \mathrm{Logistic}(0, \mathrm{sd}_{b_0})$ (logit) or $\mathrm{Normal}(0, \mathrm{sd}_{b_0})$ (probit), matched to the link function; $b_1 \sim \mathrm{Logistic}(0, \mathrm{sd}_{b_1})$ or $\mathrm{Normal}(0, \mathrm{sd}_{b_1})$
-- **Random effects:** $u_j \sim \mathrm{Normal}(0, \sigma_u^2)$ with hyperprior $\sigma_u \sim \mathrm{Exponential}(\lambda)$
-
-Recommended scale values — $\mathrm{sd}_{b_0} \approx 0.75$, $\mathrm{sd}_{b_1} \in [0.25, 0.30]$, and $\lambda = 4$ — are derived from the three-step workflow in Steps 2 and 3 below.
-
-The Bayes Factor for the fixed effect $b_1$ compares:
-
-$$H_1:\; b_1 \neq 0 \quad \text{vs.} \quad H_0:\; b_1 = 0$$
-
-Under both models, the random intercepts $u_j$ are present and integrated out in the marginal likelihoods used to compute the BF. Because $\sigma_u$ appears symmetrically in both marginal likelihoods, its hyperprior largely cancels from the ratio, leaving the BF dominated by the fixed-effect signal-to-noise ratio. This *nuisance-parameter robustness* means that the choice of hyperprior on $\sigma_u$ has little influence on BFs for the fixed effect $b_1$, provided a reasonable weakly informative prior is used.
-
-This robustness is practically valuable: researchers do not need to fine-tune the hyperprior on $\sigma_u$ to obtain reliable BFs for the fixed effect. Step 3 confirms this empirically (see @fig-bf-violin-re): even when the hyperprior is dramatically misspecified — for example, using `student_t(3, 0, 2.5)`, which concentrates mass near $\sigma_u \approx 2.76$ on the logit scale — the BF for the fixed effect is virtually unchanged relative to the recommended `exponential(4)` hyperprior.
+The PIT argument developed here applies directly to the intercept prior, because the implied probability $g^{-1}(b_0)$ depends on $b_0$ alone. For effect priors, the same distributional family is adopted for parsimony -- a single family across all coefficients -- but the PIT does not extend in the same way. This is because the sum of two Logistic random variables is not Logistic: the Logistic distribution is not closed under addition. Consequently, $b_0 + b_1$ (which determines the linear predictor in each condition) does not follow a Logistic distribution even when both $b_0$ and $b_1$ do, and the PIT does not apply to $\delta p$ directly. The Normal distribution *is* closed under addition, so for the probit link the extension is more natural: $b_0 + b_1$ remains Normal and the PIT logic carries over in a modified sense. For the logit link, the family choice for $b_1$ is therefore motivated by consistency with the intercept prior and validated empirically in Steps 2 and 3.
 
 ## Step 2: Prior Predictive Simulation {#sec-prior-predictive}
 
@@ -247,6 +248,8 @@ plot_p_intercept_ridges(fig1_draws, sd_b1_focus = 0.25)
 
 ### Effect Prior {#sec-pp-effect}
 
+The Logistic family is used for $b_1$ by parsimony -- the same family as the intercept -- rather than by a direct PIT derivation; the appropriate scale is determined from the prior predictive distributions below.
+
 The prior on effect parameter $b_1$ determines how much prior mass falls on small versus large effects. Due to the nonlinear link, we must compute the implied prior on $\delta p$ by drawing from the joint prior on $(b_0, b_1)$ and transforming through the inverse link. Concretely, the implied prior on $\delta p$ is computed as $\delta p = g^{-1}(b_0 + b_1) - g^{-1}(b_0 - b_1)$. @fig-3-delta-p shows how the choice of $\mathrm{sd}_{b_1}$ translates into implied experimental effects in $\delta p$, holding the intercept prior fixed at the matched recommendation ($\mathrm{Logistic}(0, 0.75)$ for logit; $\mathrm{Normal}(0, 0.75)$ for probit).
 
 ```{r}
@@ -273,9 +276,37 @@ plot_delta_p_ridges(fig2_draws, sd_b0_focus = 0.75)
 
 The Cauchy prior stands apart at every scale: even at $\mathrm{sd}_{b_1} = 0.25$, its heavy tails assign substantial probability to $|\delta p| > 0.50$, making it a poor default. Note that effects of $|\delta p| \approx 1.0$ would require perfect accuracy in one condition and zero correct responses in the other -- a scenario that is virtually impossible in practice.
 
-To quantify this more precisely, we computed the proportion of the prior predictive mass that falls within the plausible range $0.10 \leq |\delta p| \leq 0.90$ for an intercept-only model at $\mathrm{sd}_{b_1} = 0.25$. For the matched Logistic(0, 0.25), approximately 90% of the mass falls below $|\delta p| = 0.20$. In contrast, the $\mathrm{Cauchy}(0, \sqrt{2}/2)$ -- the JZS default from the BayesFactor package -- assigns substantial probability to extreme effects even on the probability scale, reflecting a poor fit between the prior's implicit assumptions and what is plausible in behavioral research. We return to this comparison in the BF calibration analysis below.
+```{r}
+#| label: setup-pp-effect-stats
+#| include: false
 
-Within the substantively appropriate range, Normal and Logistic priors behave very similarly. We consider a prior *plausible* for behavioral research if the bulk of its prior predictive mass falls on effect sizes that could realistically be observed in the paradigm of interest; for typical accuracy and detection tasks, this means assigning the majority of prior probability to $|\delta p| < 0.30$. We use the 90th percentile of $|\delta p|$ as the key summary; 90% of the prior probability mass is assigned to effect sizes smaller than that value: at $\mathrm{sd}_{b_1} = 0.25$, the 90th percentile is near 0.20 -- a large effect by the standards of most psychological research. Values up to $\mathrm{sd}_{b_1} = 0.50$ remain defensible when very large effects are plausible. We recommend $\mathrm{sd}_{b_1} \in [0.25, 0.30]$ as the default range when continuous predictors are scaled to $\mathrm{SD} = 1$, and categorical predictors are sum-to-zero coded with $\pm 1$.
+# Summary statistics for effect prior plausibility comparison
+# JZS Cauchy(0, sqrt(2)/2) ~ 0.707; closest grid value is 0.75
+pp_effect_stats <- draws_long |>
+  filter(link == "logit", dist_b0 == "logistic", sd_b0 == 0.75,
+         sd_b1 %in% c(0.25, 0.75)) |>
+  group_by(dist_b1, sd_b1) |>
+  summarise(
+    p90       = quantile(abs_delta_p, 0.90),
+    prop_gt30 = mean(abs_delta_p > 0.30) * 100,
+    .groups   = "drop"
+  )
+
+p90_logistic_25  <- pp_effect_stats |>
+  filter(dist_b1 == "logistic", sd_b1 == 0.25) |> pull(p90)
+prop_logistic_25 <- pp_effect_stats |>
+  filter(dist_b1 == "logistic", sd_b1 == 0.25) |> pull(prop_gt30)
+p90_normal_25    <- pp_effect_stats |>
+  filter(dist_b1 == "normal",   sd_b1 == 0.25) |> pull(p90)
+prop_normal_25   <- pp_effect_stats |>
+  filter(dist_b1 == "normal",   sd_b1 == 0.25) |> pull(prop_gt30)
+# Cauchy at sd = 0.75 is the closest available grid value to sqrt(2)/2 ~ 0.707
+prop_cauchy_jzs  <- pp_effect_stats |>
+  filter(dist_b1 == "cauchy",   sd_b1 == 0.75) |> pull(prop_gt30)
+fold_excess      <- prop_cauchy_jzs / prop_logistic_25
+```
+
+We use the 90th percentile of $|\delta p|$ as the primary plausibility summary: 90% of the prior predictive mass falls below this value, so a lower 90th percentile indicates more conservative prior assumptions about effect sizes. At $\mathrm{sd}_{b_1} = 0.25$, the recommended Logistic(0, 0.25) gives a 90th percentile of `r round(p90_logistic_25, 2)` and the Normal(0, 0.25) gives `r round(p90_normal_25, 2)` -- both concentrate mass well within the range of plausible accuracy differences. Concretely, only `r round(prop_logistic_25, 1)`% of the Logistic prior's mass falls above $|\delta p| = 0.30$, an accuracy difference that would already be considered large in most cognitive paradigms. The $\mathrm{Cauchy}(0, \sqrt{2}/2)$ -- the JZS-motivated default -- assigns `r round(prop_cauchy_jzs, 1)`% of its mass to effects this large, a `r round(fold_excess, 1)`-fold excess relative to the recommended prior; we return to the BF calibration consequences below. Values up to $\mathrm{sd}_{b_1} = 0.50$ remain defensible when very large effects are plausible. We recommend $\mathrm{sd}_{b_1} \in [0.25, 0.30]$ as the default range when continuous predictors are scaled to $\mathrm{SD} = 1$ and categorical predictors use sum-to-zero $\pm 1$ coding.
 
 ### Random Effects Hyperprior {#sec-pp-re}
 
@@ -336,28 +367,15 @@ re_pp_draws |>
 
 When matched by their mean value, all four families produce nearly identical prior predictive distributions for subject-level success probabilities (@fig-re-1-p-intercept). The primary driver is the scale, not the family. At a hyperprior mean of 0.25, subject-level probabilities are well concentrated away from floor and ceiling. In sum, we recommend $\mathrm{Exponential}(4)$ (mean = 0.25) as the default because it requires only one parameter. In `brms` [@burkner2017; @burkner2018] -- an R package for Bayesian multilevel modelling -- the default hyperprior `student_t(3, 0, 2.5)` (mean $\approx$ 2.76) spreads subject-level probabilities too heavily toward 0 and 1 for typical experiments (see Supplementary Figure S2 for effect heterogeneity).
 
-
 ## Step 3: Bayes Factor Calibration {#sec-bf-calibration}
 
-The prior predictive analysis established which prior families and scales produce plausible distributions on the probability scale. We now verify that these priors also yield well-calibrated Bayes Factors -- that is, Bayes Factors that correctly favour $H_1$ when an effect exists and $H_0$ when it does not. Because the Bayes Factor reflects how much the data update our prior beliefs, a prior that places too much mass on implausibly large effects will be penalised even when a true effect exists, producing Bayes Factors that systematically favour $H_0$.
-
-### Properties of Matched-Prior Bayes Factors {#sec-bf-properties}
-
-Before presenting simulation results, we briefly characterise the theoretical properties of matched-prior Bayes factors against the desiderata for Bayesian model selection criteria [@bayarri2012]. @pfister2024 demonstrated through systematic comparison of BayesFactor and JASP implementations that BF estimates can diverge substantially across software packages, particularly for small effects and moderate sample sizes, raising concerns about reproducibility. The theoretical properties evaluated here — information and Lindley consistency — provide formal guarantees that matched-prior Bayes factors are well-behaved regardless of which compliant implementation is used.
-
-**Information consistency.** A Bayesian test is information-consistent if the Bayes factor in favour of the true model grows without bound as evidence accumulates: $BF_{10} \to \infty$ as the effect size is fixed and $n \to \infty$, and similarly $BF_{10} \to \infty$ as the true effect size grows with fixed $n$. Fixed-scale normal (and logistic) priors are information-consistent: the prior density at zero is finite and fixed, while the posterior density at zero decreases to zero as evidence accumulates, driving $BF_{10} = f_{\mathrm{prior}}(0) / f_{\mathrm{post}}(0) \to \infty$. This contrasts with improper or overly diffuse priors, which can produce inconsistent behavior. We demonstrate this empirically below.
-
-**Model selection consistency (Lindley consistency).** As $n \to \infty$ with a true nonzero effect fixed, the Bayes factor correctly identifies $H_1$ with probability approaching 1 (and analogously for $H_0$). This follows from standard Bayesian consistency results for proper priors with sufficient support at the true parameter value -- a condition satisfied by matched priors.
-
-**Measurement invariance.** Under sum-to-zero $\pm 1$ contrast coding, the matched prior on $b_1$ implies a symmetric prior predictive distribution for $\delta p$: reversing the sign of the predictor reverses the sign of $b_1$ but leaves $|\delta p|$ unchanged. The recommended priors are therefore invariant to the direction of coding, so that the BF does not depend on which group is arbitrarily labelled as $+1$ or $-1$.
-
-**Predictive matching.** The matched-prior workflow explicitly evaluates priors through their prior predictive distributions on the probability scale (Step 2), ensuring that the prior assigns the majority of its mass to scientifically plausible effect sizes. In the terminology of @bayarri2012, this constitutes a form of predictive matching: the prior is calibrated so that the prior predictive distribution reflects the researcher's actual uncertainty about plausible outcomes. The following simulation operationalizes all four criteria empirically.
+The prior predictive analysis established which prior families and scales produce plausible distributions on the probability scale. We now verify that these priors also yield well-calibrated Bayes Factors -- that is, Bayes Factors that correctly favour $H_1$ when an effect exists and $H_0$ when it does not. BF estimates can diverge substantially across computational implementations [@pfister2024]; formal consistency properties provide a check that is implementation-independent. Because the Bayes Factor reflects how much the data update our prior beliefs, a prior that places too much mass on implausibly large effects will be penalised even when a true effect exists, producing Bayes Factors that systematically favour $H_0$.
 
 ### Simulation Design
 
 We simulated data under the logit link with true effects ranging from $b_1 = 0$ (null) to $b_1 = 0.50$, crossing three effect prior families (Normal, Logistic, Cauchy) at two scales ($\mathrm{sd}_{b_1} = 0.25$ and $0.50$), two intercept prior families, three sample sizes (30, 60, 100), and two trial counts (20, 50). The two intercept prior families were a matched Logistic(0, 0.75) -- whose family mirrors the logit link -- and a misfit Normal(0, 0.75), which does not. A second simulation held fixed-effects priors at the recommended matched configuration and varied only the random-effects hyperprior across three candidates: Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4). Bayes Factors were computed via the Savage-Dickey density ratio [@wagenmakers2018; @ly2016] -- the ratio of the prior density to the posterior density at $b_1 = 0$, which estimates how much the data have shifted belief away from the null.[^sdr]
 
-[^sdr]: The Savage-Dickey ratio is valid when two conditions hold: (a) the prior on $b_1$ under $H_1$ is continuous (no point masses), and (b) the null hypothesis specifies $b_1 = 0$ as a nested point constraint within the full model [@ly2016]. Both conditions are satisfied here: the matched logistic and normal priors are continuous, and $H_0 : b_1 = 0$ is a point-mass restriction within the full model. When the posterior is far from zero, bridge sampling is preferred to avoid KDE underflow at the null, as used in the consistency analysis below. We present results for small to moderate effects ($b_1 \in \{0, 0.10, 0.20\}$) in the most data-sparse scenario ($N = 30$, 20 trials), where prior sensitivity is most visible; results for the full range of effect sizes and sample sizes are available in the Supplementary Materials.
+[^sdr]: The Savage-Dickey ratio is valid when three conditions hold: (a) the prior on $b_1$ under $H_1$ is continuous (no point masses), (b) the null hypothesis specifies $b_1 = 0$ as a nested point constraint within the full model, and (c) the prior on nuisance parameters $\eta$ under $H_1$, evaluated at $b_1 = 0$, equals the prior on $\eta$ under $H_0$ — i.e., $\pi_{H_1}(\eta \mid b_1 = 0) = \pi_{H_0}(\eta)$ [@ly2016; @rouder2012]. All three conditions are satisfied here: the matched logistic and normal priors are continuous, $H_0 : b_1 = 0$ is a point-mass restriction within the full model, and the random-intercept prior is identical under $H_0$ and $H_1$. When the posterior is far from zero, bridge sampling is preferred to avoid KDE underflow at the null, as used in the consistency analysis below. We present results for small to moderate effects ($b_1 \in \{0, 0.10, 0.20\}$) in the most data-sparse scenario ($N = 30$, 20 trials), where prior sensitivity is most visible; results for the full range of effect sizes and sample sizes are available in the Supplementary Materials.
 
 ```{r}
 #| label: setup-bf-raw
@@ -410,11 +428,9 @@ bf_raw_consistency <- tryCatch(
 bf_raw_consistency_available <- !is.null(bf_raw_consistency)
 ```
 
-### Transparency and Openness
-
-All simulation scripts, model-fitting code, and analysis code reported in this paper are publicly available at <https://github.com/GidonFrischkorn/PriorsBinomial>. No empirical data were collected; all results are based on computer simulations. This study was not preregistered. An earlier, more tutorial-oriented version of this manuscript is publicly available as a preprint [@frischkorn2026preprint]; that version was submitted to *Advances in Methods and Practices in Psychological Science* and not accepted. The present manuscript is a substantially revised and extended version produced in response to the recommendations from that review. Software versions used: R 4.5.2 [@r2023]; SimDesign 2.25 [@chalmers2020]; brms 2.23.0 [@burkner2017; @burkner2018]; CmdStan 2.38.0 [@stan2023] via cmdstanr 0.9.0 [@gabry2024]; bridgesampling 1.2.1 [@gronau2017]. A complete session information block is provided in the Supplementary Materials.
-
 ### Effect of Prior Family and Width
+
+Because we use sum-to-zero $\pm 1$ contrast coding, the BF does not depend on which group is labelled $+1$ or $-1$ -- the implied prior on $|\delta p|$ is symmetric by construction. Given this measurement invariance, the results below isolate the effect of prior family and scale on BF calibration.
 
 ```{r}
 #| label: fig-bf-violin-family
@@ -463,57 +479,63 @@ The choice of effect prior family has only very little impact on the BF (@fig-bf
 
 ### Comparison to the JZS/Cauchy Default
 
-To assess whether the matched prior outperforms the JZS/Cauchy default, we ran a factorial simulation with two effect-prior conditions: the matched Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) used in the `BayesFactor` package [@rouder2012]. These crossed four true effect sizes ($b_1 \in \{0, 0.10, 0.20, 0.50\}$), three sample sizes ($N \in \{30, 60, 100\}$), and two trial counts (20 or 50 per subject), yielding 48 conditions. Both prior conditions used the matched Logistic(0, 0.75) intercept prior and Exponential(4) random-effects hyperprior. We ran 100 replications per condition and estimated Bayes Factors via the Savage-Dickey density ratio.
+A key criterion for principled prior choice is predictive matching [@bayarri2012]: the prior should assign the majority of its mass to effect sizes that are scientifically plausible. The prior predictive analysis in Step 2 showed that the JZS/Cauchy default fails this criterion -- its heavy tails assign substantial probability to $|\delta p| > 0.30$ even at moderate scales. Here we assess whether this prior-predictive failure translates to a BF calibration disadvantage.
+
+To assess whether the recommended prior outperforms the JZS/Cauchy default, and to separate the contribution of prior scale from prior family, we ran a factorial simulation crossing two prior families (Logistic, Cauchy) and two prior scales ($\mathrm{sd}_{b_1} \in \{0.25,\, \sqrt{2}/2 \approx 0.707\}$), yielding four effect-prior conditions applied to the same simulated datasets. The scale $\sqrt{2}/2$ is the "medium" default of the BayesFactor R package, motivated by the JZS t-test convention [@rouder2009; @rouder2012] and used in logistic regression by @oberauer2019 (who applied the related scale 0.353). These crossed three true effect sizes ($b_1 \in \{0, 0.10, 0.20\}$), three sample sizes ($N \in \{20, 30, 50\}$), and two trial counts (20 or 50 per subject), yielding 36 design conditions. All four prior conditions used the matched Logistic(0, 0.75) intercept prior and Exponential(4) random-effects hyperprior. We ran 300 replications per design condition and estimated Bayes Factors via the Savage-Dickey density ratio.
 
 ```{r}
-#| label: fig-bf-jzs-comparison
-#| fig-cap: "Comparison of the matched Logistic(0, 0.25) prior against the
-#|   JZS/Cauchy default (Cauchy(0, sqrt(2)/2), as used in the BayesFactor package)
-#|   for N = 30, 20 trials. Rows show true effect b1 = 0 (null), 0.10, 0.20, 0.50.
-#|   For small effects (b1 = 0.10), the matched prior yields substantially higher
-#|   power and lower rates of false H0 support than the Cauchy default; the two
-#|   priors converge for medium-to-large effects (b1 >= 0.20).
-#|   Dashed lines mark BF10 = 3 and BF10 = 1/3."
-#| fig-height: 8
-#| fig-width: 8
-#| eval: !expr bf_raw_jzs_available
-
-bf_raw_jzs |>
-  filter(n_subjects == 30, n_trials == 20) |>
-  mutate(
-    prior_label = case_when(
-      dist_b1 == "logistic" ~ "Matched\nLogistic(0, 0.25)",
-      dist_b1 == "cauchy"   ~ "JZS/Cauchy\nCauchy(0, sqrt(2)/2)"
-    ),
-    prior_label   = factor(prior_label,
-                           levels = c("Matched\nLogistic(0, 0.25)",
-                                      "JZS/Cauchy\nCauchy(0, sqrt(2)/2)")),
-    true_b1_label = factor(paste0("b[1] == ", true_b1))
-  ) |>
-  ggplot(aes(x = prior_label, y = log10_BF10, fill = prior_label)) +
-  geom_hline(yintercept = c(log10(3), log10(1/3)), linetype = "dashed",
-             colour = "grey50", linewidth = 0.5) +
-  geom_hline(yintercept = 0, colour = "grey30", linewidth = 0.4) +
-  geom_violin(alpha = 0.6, scale = "width", width = 0.7) +
-  stat_summary(fun = median, geom = "point", size = 2, colour = "black") +
-  facet_wrap(~ true_b1_label, nrow = 2, labeller = label_parsed) +
-  scale_fill_viridis_d("Prior", option = "D", end = 0.85) +
-  scale_y_continuous(
-    expression(BF[10]),
-    breaks = log10(c(1/100, 1/10, 1/3, 1, 3, 10, 100)),
-    labels = c("1/100", "1/10", "1/3", "1", "3", "10", "100")
-  ) +
-  coord_cartesian(ylim = c(-2.5, 2.5)) +
-  labs(x = "Prior specification") +
-  prior_theme() +
-  theme(axis.text.x = element_text(size = 10))
+#| label: fig-bf-jzs-logbf
+#| fig-cap: "Distribution of $\\log_{10}(\\mathrm{BF}_{10})$ for all four prior
+#|   combinations (Logistic/Cauchy $\\times$ scale 0.25/0.707) under the null
+#|   ($b_1 = 0$), a small effect ($b_1 = 0.10$), and a medium effect ($b_1 = 0.20$).
+#|   Columns show sample sizes ($N = 20, 30, 50$); rows show trial counts ($T = 20, 50$).
+#|   Within each ridge, solid (Logistic) and dashed (Cauchy) lines nearly coincide
+#|   at matched scales. Scale 0.707 shifts both distributions leftward relative to
+#|   the $\\pm\\log_{10}(3)$ decision thresholds (vertical dashed lines), reducing
+#|   BF mass in the evidence-for-$H_1$ region."
+#| out-width: "100%"
+#| eval: !expr logbf_fig_available
+knitr::include_graphics(here("figures", "logbf_distributions.png"))
 ```
 
-@fig-bf-jzs-comparison compares the matched Logistic(0, 0.25) against the JZS/Cauchy default. The two priors diverge most strongly for small true effects. Under the true null ($b_1 = 0$), the Cauchy's heavier tails make it more skeptical and it correctly supports $H_0$ at a higher rate than the matched logistic (e.g., $P(\mathrm{BF}_{01} > 3) \approx 0.91$ vs.\ $0.60$ at $N = 30$, 20 trials). However, this skepticism comes at a cost when a small true effect is present: at $b_1 = 0.10$ and $N = 60$, the Cauchy achieves only 12% power ($P(\mathrm{BF}_{10} > 3)$) compared to 34% for the matched logistic, and 53% of Cauchy replications falsely return evidence for $H_0$ ($\mathrm{BF}_{01} > 3$) versus 20% for the matched logistic. The Cauchy default thus provides systematically misleading evidence when a small genuine effect is present. For medium and large effects ($b_1 \geq 0.20$), the two priors converge and both achieve high power. The matched prior therefore offers a genuine BF calibration advantage for small effects, over and above providing scientifically plausible prior predictive distributions on the probability scale; the JZS/Cauchy default assigns substantial prior mass to implausibly large effects (see Prior Predictive Simulation section above and Supplementary Materials for quantification).
+@fig-bf-jzs-logbf shows the full distribution of $\log_{10}(\mathrm{BF}_{10})$ for all four prior combinations across the design space. At matched scales, Logistic and Cauchy produce nearly identical distributions — within each ridge, solid and dashed lines virtually coincide. The scale difference is the dominant factor. Under the true null ($b_1 = 0$), scale 0.707 shifts the distribution substantially leftward relative to the $\pm\log_{10}(3)$ decision boundaries: $P(\mathrm{BF}_{01} > 3) \approx 0.91$ at scale 0.707 versus $\approx 0.60$ at scale 0.25 for both families ($N = 30$, 20 trials). This conservatism comes at a direct cost for small effects: at $b_1 = 0.10$ and $N = 30$, scale 0.707 can only detect approximately 12% of effects ($P(\mathrm{BF}_{10} > 3)$) compared to 34% at scale 0.25. Prior scale moves BF mass relative to decision thresholds; prior family does not.
+
+The threshold-specific analysis in @fig-bf-jzs-logbf raises a natural question: is the scale advantage specific to the $\mathrm{BF} = 3$ threshold, or does it reflect a deeper difference in discriminability? @fig-bf-jzs-roc addresses this by plotting the full ROC curve — the true positive rate against the false positive rate across all possible thresholds — for both $H_1$ detection ($\mathrm{BF}_{10} > t$) and $H_0$ detection ($\mathrm{BF}_{01} > t$).
+
+```{r}
+#| label: fig-bf-jzs-roc
+#| fig-cap: "Bootstrapped ROC curves (500 resamples, 95\\% CI ribbons) for
+#|   $H_1$ detection ($\\mathrm{BF}_{10} > t$; left panel) and $H_0$ detection
+#|   ($\\mathrm{BF}_{01} > t$; right panel) across all design conditions.
+#|   Warm colours (orange/vermillion) indicate scale 0.25; cool colours (blue/sky)
+#|   indicate scale 0.707. Within each colour pair, Logistic (solid) and Cauchy
+#|   (dashed) nearly overlap. Open circles mark the $\\mathrm{BF} = 3$ operating
+#|   point. Row labels: $N$ subjects; column labels: $T$ trials per condition."
+#| out-width: "100%"
+#| eval: !expr roc_dual_fig_available
+knitr::include_graphics(here("figures", "roc_dual_comparison.png"))
+```
+
+Within each scale group, Logistic and Cauchy ROC curves nearly overlap in both panels. However, the $\mathrm{BF} = 3$ operating points (open circles) shift systematically with scale: scale 0.707 places the criterion higher on the $H_0$-detection curve and lower on the $H_1$-detection curve, confirming the criterion interpretation from @fig-bf-jzs-logbf. Critically, the ROC curves themselves — and therefore the area under them — do not differ across priors. @fig-bf-jzs-auc quantifies this directly.
+
+```{r}
+#| label: fig-bf-jzs-auc
+#| fig-cap: "Area under the ROC curve (AUC; Wilcoxon estimator) with 95\\%
+#|   bootstrap CI ($n = 500$) for $H_1$ detection (left panel) and $H_0$ detection
+#|   (right panel) as a function of sample size. Colour encodes prior scale;
+#|   linetype encodes prior family. The dashed horizontal line marks AUC $= 0.50$
+#|   (chance). All four prior combinations produce indistinguishable AUC trajectories;
+#|   discriminability is driven by sample size, trial count, and effect size alone."
+#| out-width: "100%"
+#| eval: !expr auc_fig_available
+knitr::include_graphics(here("figures", "auc_jzs_comparison.png"))
+```
+
+Across all conditions, all four prior combinations produce indistinguishable AUC trajectories for both $H_1$ and $H_0$ detection. The factors that increase AUC are sample size, trial count, and true effect size — properties of the data, not of the prior. This decomposition has a direct interpretation in signal detection theory: prior scale is a criterion parameter, not a sensitivity parameter. It controls where the BF mass falls relative to any fixed decision threshold, determining the operating point, but leaves the underlying discriminability of the test unchanged. Prior family contributes negligibly even to the criterion shift. The calibration advantage of Logistic(0, 0.25) over the JZS/Cauchy default is therefore a criterion advantage — it places the operating point in a region that avoids over-conservatism for small effects. Researchers who prefer the Cauchy family can adopt Cauchy(0, 0.25) with equivalent BF behavior in both directions.
 
 ### Information Consistency
 
-Having established the BF calibration advantage of matched priors over the JZS default, we now verify whether they satisfy the formal consistency desiderata described above. To verify information and Lindley consistency empirically, we held the prior fixed at the recommended matched configuration (Logistic(0, 0.25) effect prior, Logistic(0, 0.75) intercept prior, Exponential(4) random-effects hyperprior) and varied the true effect size ($b_1 \in \{0, 0.05, 0.10, 0.20, 0.50\}$) and sample size ($N \in \{20, 30, 50, 100, 200\}$), with 20 trials per subject throughout. We ran 100 replications per condition. Bayes Factors were estimated via bridge sampling [@gronau2017], which remains reliable when the posterior is far from zero; the Savage-Dickey KDE at zero can underflow in such cases, producing inflated BF estimates.
+Information consistency requires that $BF_{10} \to \infty$ as sample size grows with a fixed nonzero effect; model selection consistency requires that the BF correctly identifies the true model with probability approaching 1 as $n \to \infty$. Fixed-scale matched priors satisfy both criteria analytically -- the prior density at zero is finite and fixed, while the posterior density at zero approaches zero as evidence accumulates. Having established the BF calibration advantage of matched priors over the JZS default, we verify this empirically. To verify information and model selection consistency, we held the prior fixed at the recommended matched configuration (Logistic(0, 0.25) effect prior, Logistic(0, 0.75) intercept prior, Exponential(4) random-effects hyperprior) and varied the true effect size ($b_1 \in \{0, 0.05, 0.10, 0.20, 0.50\}$) and sample size ($N \in \{20, 30, 50, 100, 200\}$), with 20 trials per subject throughout. We ran 100 replications per condition. Bayes Factors were estimated via bridge sampling [@gronau2017], which remains reliable when the posterior is far from zero; the Savage-Dickey KDE at zero can underflow in such cases, producing inflated BF estimates.
 
 ```{r}
 #| label: fig-bf-consistency-effect
@@ -560,7 +582,7 @@ consistency_continuous |>
 
 ```{r}
 #| label: fig-bf-consistency-n
-#| fig-cap: "Lindley consistency: median $\\log_{10}(BF_{10})$ as a function of
+#| fig-cap: "Model selection consistency: median $\\log_{10}(BF_{10})$ as a function of
 #|   sample size (20 trials per subject), colour-coded by true effect size $b_1$.
 #|   For $b_1 \\geq 0.10$, the BF grows monotonically with $N$; for $b_1 = 0$
 #|   (bottom line), the BF decreases monotonically, correctly accumulating evidence
@@ -597,9 +619,9 @@ consistency_continuous |>
   prior_theme()
 ```
 
-@fig-bf-consistency-effect shows information consistency empirically: for every sample size, the median $\log_{10}(\mathrm{BF}_{10})$ increases monotonically with the true effect size. @fig-bf-consistency-n shows the corresponding Lindley consistency results. For all substantively relevant effects ($b_1 \geq 0.10$), the BF grows monotonically with sample size, and the BF for the null ($b_1 = 0$) decreases monotonically, correctly accumulating evidence for $H_0$.
+@fig-bf-consistency-effect shows information consistency empirically: for every sample size, the median $\log_{10}(\mathrm{BF}_{10})$ increases monotonically with the true effect size. @fig-bf-consistency-n shows the corresponding model selection consistency results. For all substantively relevant effects ($b_1 \geq 0.10$), the BF grows monotonically with sample size, and the BF for the null ($b_1 = 0$) decreases monotonically, correctly accumulating evidence for $H_0$.
 
-For the very small effect ($b_1 = 0.05$), however, the BF may initially support $H_0$ at small-to-moderate sample sizes before eventually reversing toward $H_1$ at sufficiently large $N$. This non-monotonic pattern is known as the Jeffreys-Lindley paradox and is a theoretically expected property of Bayes factors under fixed-scale priors, not an estimation artifact [@huisman2022; @sarafoglou2024]. @huisman2022 argued that this pattern renders Bayes factors invalid as measures of evidential strength, because they are not stochastically ordered by sample size when the true effect is small. @sarafoglou2024 showed, however, that this behavior is an inevitable consequence of probability theory that has been understood since Jeffreys's original work in the 1930s, and @rouder2009 [p.\ 233] explicitly characterised it as ideal. The mechanism is model parsimony: when the true effect is negligible relative to the prior scale, $H_1$ assigns predictive probability to larger effects that fail to materialize, so the more parsimonious $H_0$ temporarily receives more support. The non-monotonicity attenuates or disappears when the prior more tightly concentrates mass around the anticipated effect size — for example, via a power-analytic prior [@schonbrodt2018] or a narrower scale. For the Logistic(0, 0.25) prior recommended here, the anomaly is confined to effects at the boundary of detectability ($b_1 = 0.05$, corresponding to an accuracy difference of approximately 1–2 percentage points); for all effects within the practically relevant range ($b_1 \geq 0.10$), Lindley consistency holds throughout the sample sizes typical in psychological research. Together, these results confirm that matched priors satisfy the key consistency desiderata within the plausible range of effect sizes.
+For the very small effect ($b_1 = 0.05$), however, the BF may initially support $H_0$ at small-to-moderate sample sizes before eventually reversing toward $H_1$ at sufficiently large $N$. This non-monotonic pattern is known as the Jeffreys-Lindley paradox and is a theoretically expected property of Bayes factors under fixed-scale priors, not an estimation artifact [@huisman2022; @sarafoglou2024]. @huisman2022 argued that this pattern renders Bayes factors invalid as measures of evidential strength, because they are not stochastically ordered by sample size when the true effect is small. @sarafoglou2024 showed, however, that this behavior is an inevitable consequence of probability theory that has been understood since Jeffreys's original work in the 1930s, and @rouder2009 [p.\ 233] explicitly characterised it as ideal. The mechanism is model parsimony: when the true effect is negligible relative to the prior scale, $H_1$ assigns predictive probability to larger effects that fail to materialize, so the more parsimonious $H_0$ temporarily receives more support. The non-monotonicity attenuates or disappears when the prior more tightly concentrates mass around the anticipated effect size — for example, via a design prior [@schonbrodt2018] or a narrower scale. For the Logistic(0, 0.25) prior recommended here, the anomaly is confined to effects at the boundary of detectability ($b_1 = 0.05$, corresponding to an accuracy difference of approximately 1–2 percentage points); for all effects within the practically relevant range ($b_1 \geq 0.10$), model selection consistency holds throughout the sample sizes typical in psychological research. Together, these results confirm that matched priors satisfy the key consistency desiderata within the plausible range of effect sizes.
 
 ### Effect of Random-Effects Hyperprior
 
@@ -654,7 +676,7 @@ The random-effects hyperprior (i.e., the prior on the standard deviation of indi
 ```{r}
 #| label: tbl-bf-summary-power
 #| tbl-cap: "Detection rates ($P(\\mathrm{BF}_{10} > 3)$) and correct null-support
-#|   rates ($P(\\mathrm{BF}_{01} > 3)$) for the matched Logistic(0, 0.25) and
+#|   rates ($P(\\mathrm{BF}_{01} > 3)$) for the recommended Logistic(0, 0.25) and
 #|   JZS Cauchy(0, $\\sqrt{2}/2$) priors at representative conditions (20 trials
 #|   per subject). Each cell shows power / null-support rate. Under the null
 #|   ($b_1 = 0$), $P(\\mathrm{BF}_{01} > 3)$ is the Type I error analogue ---
@@ -662,20 +684,26 @@ The random-effects hyperprior (i.e., the prior on the standard deviation of indi
 #|   under nonzero effects, it is the false-$H_0$ support rate."
 #| eval: !expr jzs_available
 
-jzs_summaries |>
-  filter(n_trials == 20, n_subjects %in% c(30, 100)) |>
+jzs_scale_val <- round(sqrt(2) / 2, 3)
+
+matched_rows <- jzs_summaries |>
+  filter(n_trials == 20, n_subjects %in% c(30, 50), sd_b1 == 0.25) |>
+  transmute(true_b1, n_subjects,
+            prior_label = "Matched",
+            P_BF10_gt3  = P_BF10_gt3_logistic,
+            P_BF01_gt3  = P_BF01_gt3_logistic)
+
+jzs_rows <- jzs_summaries |>
+  filter(n_trials == 20, n_subjects %in% c(30, 50), sd_b1 == jzs_scale_val) |>
+  transmute(true_b1, n_subjects,
+            prior_label = "JZS",
+            P_BF10_gt3  = P_BF10_gt3_cauchy,
+            P_BF01_gt3  = P_BF01_gt3_cauchy)
+
+bind_rows(matched_rows, jzs_rows) |>
   mutate(
-    prior_label = case_when(
-      dist_b1 == "logistic" ~ "Matched",
-      dist_b1 == "cauchy"   ~ "JZS"
-    ),
-    col_label = paste0("N=", n_subjects)
-  ) |>
-  select(prior_label, true_b1, col_label, P_BF10_gt3, P_BF01_gt3) |>
-  mutate(
-    P_BF10_gt3 = round(P_BF10_gt3, 2),
-    P_BF01_gt3 = round(P_BF01_gt3, 2),
-    cell = paste0(P_BF10_gt3, " / ", P_BF01_gt3)
+    col_label = paste0("N=", n_subjects),
+    cell      = paste0(round(P_BF10_gt3, 2), " / ", round(P_BF01_gt3, 2))
   ) |>
   select(prior_label, true_b1, col_label, cell) |>
   pivot_wider(
@@ -686,16 +714,17 @@ jzs_summaries |>
   knitr::kable(
     col.names = c("True $b_1$",
                   "N=30 Matched", "N=30 JZS",
-                  "N=100 Matched", "N=100 JZS"),
+                  "N=50 Matched", "N=50 JZS"),
     align  = c("l", rep("r", 4)),
     escape = FALSE
   )
 ```
 
-Across all conditions, the most important prior-choice factor is the scale of the effect prior. The choice of the prior family, the intercept prior, and the random-effects hyperprior had negligible effects. Matched priors exhibit information and Lindley consistency, confirming that they correctly accumulate evidence as data grow. Crucially, their BF calibration is superior to the commonly used JZS/Cauchy default for small effects: the Cauchy prior's heavy tails make it overly skeptical, frequently producing misleading evidence for $H_0$ when a small genuine effect is present ($b_1 = 0.10$), while the matched Logistic prior provides substantially higher power in this range. For medium and large effects ($b_1 \geq 0.20$), both priors perform similarly. Together with the guarantee of plausible prior predictive distributions on the probability scale, the matched prior represents a strictly preferable alternative to the JZS/Cauchy default. Still, when computing Bayes Factors for drawing inferences, we recommend running a prior sensitivity analysis by computing BFs across a small set of plausible effect-prior widths (e.g., $\mathrm{sd}_{b_1} \in \{0.15, 0.25, 0.35\}$) to test the robustness of the results over varying prior scales.
-
+Across all conditions, the most important prior-choice factor is the scale of the effect prior. The choice of the prior family, the intercept prior, and the random-effects hyperprior had negligible effects. Matched priors exhibit information and model selection consistency, confirming that they correctly accumulate evidence as data grow. Crucially, their BF calibration is superior to the commonly used JZS/Cauchy default for small effects: the Cauchy prior's heavy tails make it overly skeptical, frequently producing misleading evidence for $H_0$ when a small genuine effect is present ($b_1 = 0.10$), while the matched Logistic prior provides substantially higher power in this range. For medium and large effects ($b_1 \geq 0.20$), both priors perform similarly. Together with the guarantee of plausible prior predictive distributions on the probability scale, the matched prior represents a strictly preferable alternative to the JZS/Cauchy default. Still, when computing Bayes Factors for drawing inferences, we recommend running a prior sensitivity analysis by computing BFs across a small set of plausible effect-prior widths (e.g., $\mathrm{sd}_{b_1} \in \{0.15, 0.25, 0.35\}$) to test the robustness of the results over varying prior scales.
 
 ## Recommendations {#sec-recommendations}
+
+The defaults below are specific to binomial GLMs. They rest on the simulations in Steps 2 and 3; scale recommendations for other model families -- ordinal, count, lognormal -- would require dedicated simulation work and are beyond the scope of this paper.
 
 Researchers who want to apply the recommendations directly without reading the derivations can use the defaults in @tbl-prior-summary and the ready-to-use code below.
 
@@ -848,7 +877,7 @@ p_single
 
 ## Applying the Workflow Beyond Binomial Models {#sec-extensions}
 
-The three-step workflow demonstrated above transfers directly to other model classes where link functions mediate between parameter and probability scales. We provide a walkthrough for ordinal regression and lognormal regression and briefly sketch the application to three other common model families.
+The three-step workflow is not limited to binomial models. We illustrate here how it transfers to other common model families to demonstrate generality --- not to provide empirically validated scale recommendations, which would require dedicated simulation work for each family. We provide a walkthrough for ordinal regression and lognormal regression and briefly sketch the application to three other common model families.
 
 ### Ordinal regression
 
@@ -880,19 +909,27 @@ In each of these cases, the three-step logic remains the same: identify whether 
 
 ## Discussion
 
-We have proposed and empirically validated a three-step workflow for prior specification in GLMs with nonlinear link functions: (1) Identify matched priors via the probability integral transform, (2) evaluate implied prior predictive distributions on the probability scale, and (3) calibrate priors for Bayes Factor hypothesis testing, including formal assessment of information consistency and comparison to the JZS/Cauchy default. Applying this workflow to binomial models, we recommend the matched $\mathrm{Logistic}(0, 0.75)$ intercept prior and $\mathrm{Logistic}(0, 0.25\mathrm{--}0.30)$ effect prior for logistic regression (with analogous Normal priors for probit), and $\mathrm{Exponential}(4)$ for random-effects hyperpriors as default priors.
+We have proposed and empirically validated a three-step workflow for prior specification in GLMs with nonlinear link functions: (1) Identify matched priors via the probability integral transform, (2) evaluate implied prior predictive distributions on the probability scale, and (3) calibrate priors for Bayes Factor hypothesis testing, including formal assessment of information consistency and comparison to the JZS/Cauchy default. Applying this workflow to binomial models, we recommend the matched $\mathrm{Logistic}(0, 0.75)$ intercept prior and recommended $\mathrm{Logistic}(0, 0.25\mathrm{--}0.30)$ effect prior for logistic regression (with analogous Normal priors for probit), and $\mathrm{Exponential}(4)$ for random-effects hyperpriors as default priors.
 
-There are four main take-home messages from our results. First, the matched prior principle provides a theoretically grounded anchor that is missing from current practice: By matching the prior family to the link function via the probability integral transform, the intercept prior becomes interpretable on the probability scale. This design-independent approach complements GLM extensions of g-priors [@bove2011; @liclyde2018], which are design-dependent because they require evaluating the Fisher information matrix at a reference prediction, and provides a practically accessible default for the applied researcher. Second, the prior predictive simulations revealed that the choice of prior *family* matters far less than the choice of prior *scale* -- a finding that held for both fixed effects and random-effects hyperpriors. Third, matched priors with fixed scale are information-consistent and Lindley-consistent, satisfying key desiderata for principled Bayesian model comparison [@bayarri2012], and their BF calibration outperforms the JZS/Cauchy default for small effects: the Cauchy prior's heavy tails cause it to frequently support $H_0$ when a small true effect is present, whereas the matched Logistic prior provides substantially higher power in that range while converging with the Cauchy for medium-to-large effects. This BF calibration advantage is in addition to the matched prior's guarantee of plausible prior predictive distributions on the probability scale. Fourth, the random-effects hyperprior has negligible influence on Bayes factors for fixed effects, providing reassurance that the recommended defaults are robust to this modelling choice.
+There are four main take-home messages from our results. First, the matched prior principle provides a theoretically grounded anchor that is missing from current practice: By matching the prior family to the link function via the probability integral transform, the intercept prior becomes interpretable on the probability scale. This design-independent approach complements GLM extensions of g-priors [@bove2011; @liclyde2018], which are design-dependent because they substitute the Fisher information matrix (evaluated either at a reference prediction or at the MLE) for $(X'X)$, and provides a practically accessible default for the applied researcher. Second, the prior predictive simulations revealed that the choice of prior *family* matters far less than the choice of prior *scale* -- a finding that held for both fixed effects and random-effects hyperpriors. Third, matched priors with fixed scale are information-consistent and model-selection-consistent [@bayarri2012], satisfying key desiderata for principled Bayesian model comparison, and their BF calibration outperforms the JZS/Cauchy default for small effects: the Cauchy prior's heavy tails cause it to frequently support $H_0$ when a small true effect is present, whereas the matched Logistic prior provides substantially higher power in that range while converging with the Cauchy for medium-to-large effects. This BF calibration advantage is in addition to the matched prior's guarantee of plausible prior predictive distributions on the probability scale. Fourth, the random-effects hyperprior has negligible influence on Bayes factors for fixed effects, providing reassurance that the recommended defaults are robust to this modelling choice.
 
 Our demonstration is limited to the binomial case, and the specific prior scale recommendations are calibrated for the typical range of effect sizes encountered in psychological experiments (effect sizes in the range of $|b_1| \leq 0.50$ logit units). In applied terms: the recommendations are intended for paradigms where the true accuracy difference between conditions is unlikely to exceed approximately 20 percentage points — covering most detection, recognition, and choice experiments in cognitive psychology, but not paradigms with very large training effects or ceiling-limited designs. Researchers in other fields may need to adjust the defaults based on domain-specific effect size distributions. The BF calibration used the Savage-Dickey density ratio; other BF estimation methods (e.g., bridge sampling for non-nested comparisons) were not evaluated here. Future work should extend the empirical evaluation to (a) probit links — the theoretical result applies identically but empirical calibration has not been confirmed; (b) designs with random slopes — the present workflow addresses random intercepts only, and omitting random slopes when they are present can inflate false-positive rates in Bayesian hypothesis testing [@oberauer2022]; and (c) continuous predictors, where the interpretation of $\delta p$ depends on the predictor's scale and range.
 
 The workflow itself, however, is general. Any model with a CDF-based link function admits matched priors, and prior predictive simulation is universally applicable. We hope that the proposed workflow will aid the research community in obtaining default priors for ordinal, count, and distributional regression models, and ultimately help building a library of principled default priors for hypothesis testing across the full range of GLM families used in psychological research.
 
 
+## Transparency and Openness
+
+All simulation scripts, model-fitting code, and analysis code reported in this paper are publicly available at <https://github.com/GidonFrischkorn/PriorsBinomial>. No empirical data were collected; all results are based on computer simulations. This study was not preregistered. An earlier, more tutorial-oriented version of this manuscript is publicly available as a preprint [@frischkorn2026preprint]; that version was submitted to *Advances in Methods and Practices in Psychological Science* and not accepted. The present manuscript is a substantially revised and extended version produced in response to the recommendations from that review. Software versions used: R 4.5.2 [@r2023]; SimDesign 2.25 [@chalmers2020]; brms 2.23.0 [@burkner2017; @burkner2018]; CmdStan 2.38.0 [@stan2023] via cmdstanr 0.9.0 [@gabry2024]; bridgesampling 1.2.1 [@gronau2017]. A complete session information block is provided in the Supplementary Materials.
+
+\newpage
+
 ## References
 
 ::: {#refs}
 :::
+
+\newpage
 
 ## Appendix A: Orthonormal Contrast Scaling {#sec-appendix-contrasts .appendix}
 

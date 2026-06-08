@@ -16,22 +16,15 @@ source(here("R", "bf_helpers.R"))
 # Design grid
 # ------------------------------------------------------------------------------
 
-# Create all combinations, then keep only the intended diagonal:
-# matched Logistic at sd = 0.25 vs. JZS Cauchy at sd = sqrt(2)/2
-jzs_scale <- round(sqrt(2) / 2, 6)  # ≈ 0.707107
+# Both logistic and cauchy priors are fit on the same data within each
+# condition, so dist_b1 is not a design factor — sd_b1 is.
+jzs_scale <- round(sqrt(2) / 2, 3)  # ≈ 0.707
 
-Design_full <- createDesign(
-  dist_b1    = c("logistic", "cauchy"),
+Design <- createDesign(
   sd_b1      = c(0.25, jzs_scale),
-  true_b1    = c(0.00, 0.10, 0.20, 0.50),
-  n_subjects = c(30, 60, 100),
+  true_b1    = c(0.00, 0.10, 0.20),
+  n_subjects = c(20, 30, 50),
   n_trials   = c(20, 50)
-)
-
-Design <- subset(
-  Design_full,
-  (dist_b1 == "logistic" & sd_b1 == 0.25) |
-    (dist_b1 == "cauchy"   & sd_b1 == jzs_scale)
 )
 
 # ------------------------------------------------------------------------------
@@ -47,15 +40,20 @@ Generate <- function(condition, fixed_objects = NULL) {
 
   g_inv <- function(x) apply_inverse_link(x, link = "logit")
 
-  n_total <- 2L * n_subjects
+  # Within-subjects: each subject contributes one block of n_trials per condition.
+  # Independent random intercept and random slope drawn once per subject.
+  true_sd_slope <- fixed_objects$true_sd_slope
+  u_int   <- rnorm(n_subjects, mean = 0, sd = true_sd_re)
+  u_slope <- rnorm(n_subjects, mean = 0, sd = true_sd_slope)
   cond    <- rep(c(1L, -1L), each = n_subjects)
-  u       <- rnorm(n_total, mean = 0, sd = true_sd_re)
 
-  p_subj <- g_inv(true_b0 + true_b1 * cond + u)
+  p_subj <- g_inv(true_b0 + true_b1 * cond +
+                    rep(u_int,   times = 2) +
+                    rep(u_slope, times = 2) * cond)
 
   data.frame(
-    subject_id = seq_len(n_total),
-    y          = rbinom(n_total, n_trials, p_subj),
+    subject_id = rep(seq_len(n_subjects), times = 2),
+    y          = rbinom(2L * n_subjects, n_trials, p_subj),
     n          = n_trials,
     condition  = cond,
     true_p0    = true_p0
@@ -68,41 +66,63 @@ Analyse <- function(condition, dat, fixed_objects = NULL) {
   sd_prior_re <- fixed_objects$sd_prior_re
   true_p0     <- dat$true_p0[1]
 
-  bf10 <- tryCatch(
-    fit_and_get_bf_sd_re(
-      dat         = dat,
-      link        = "logit",
-      dist_b0     = "logistic",
-      sd_b0       = sd_b0,
-      dist_b1     = dist_b1,
-      sd_b1       = sd_b1,
-      sd_prior_re = sd_prior_re
-    ),
-    error = function(e) NA_real_
+  fit_bf <- function(dist_b1) {
+    bf10 <- tryCatch(
+      fit_and_get_bf_sd_re(
+        dat          = dat,
+        link         = "logit",
+        dist_b0      = "logistic",
+        sd_b0        = sd_b0,
+        dist_b1      = dist_b1,
+        sd_b1        = sd_b1,
+        sd_prior_re  = sd_prior_re,
+        random_slope = TRUE
+      ),
+      error = function(e) NA_real_
+    )
+    # Cap Inf (KDE underflow, extreme evidence for H1) at 1e30
+    if (is.na(bf10) || is.infinite(bf10)) bf10 <- 1e30
+    bf10
+  }
+
+  bf10_logistic <- fit_bf("logistic")
+  bf10_cauchy   <- fit_bf("cauchy")
+
+  c(
+    BF10_logistic = bf10_logistic,
+    BF10_cauchy   = bf10_cauchy,
+    BF01_logistic = 1 / bf10_logistic,
+    BF01_cauchy   = 1 / bf10_cauchy,
+    true_p0       = true_p0
   )
-
-  # Posterior density at 0 can underflow to machine precision for large effects
-  # or wide priors (Cauchy). Both NA (Stan error) and Inf (KDE underflow) encode
-  # BF -> Inf; cap at 1e30 so Summarise always receives a finite value.
-  if (is.na(bf10) || is.infinite(bf10)) bf10 <- 1e30
-
-  c(BF10 = bf10, BF01 = 1 / bf10, true_p0 = true_p0)
 }
 
 Summarise <- function(condition, results, fixed_objects = NULL) {
-  bf10 <- results[, "BF10"]
-  bf01 <- results[, "BF01"]
+  summarise_bf <- function(bf10, suffix) {
+    bf01 <- 1 / bf10
+    setNames(
+      c(
+        median(log10(bf10), na.rm = TRUE),
+        mean(log(bf10),     na.rm = TRUE),
+        mean(bf10 > 3,      na.rm = TRUE),
+        mean(bf10 > 10,     na.rm = TRUE),
+        mean(bf01 > 3,      na.rm = TRUE),
+        mean(bf01 > 10,     na.rm = TRUE),
+        sum(is.na(bf10)),
+        sum(!is.na(bf10))
+      ),
+      paste0(c("median_log10_BF10", "mean_log_BF10",
+               "P_BF10_gt3", "P_BF10_gt10",
+               "P_BF01_gt3", "P_BF01_gt10",
+               "n_failed", "n_valid"),
+             suffix)
+    )
+  }
 
   c(
-    median_log10_BF10 = median(log10(bf10), na.rm = TRUE),
-    mean_log_BF10     = mean(log(bf10),     na.rm = TRUE),
-    P_BF10_gt3        = mean(bf10 > 3,      na.rm = TRUE),
-    P_BF10_gt10       = mean(bf10 > 10,     na.rm = TRUE),
-    P_BF01_gt3        = mean(bf01 > 3,      na.rm = TRUE),
-    P_BF01_gt10       = mean(bf01 > 10,     na.rm = TRUE),
-    n_failed          = sum(is.na(bf10)),
-    n_valid           = sum(!is.na(bf10)),
-    mean_true_p0      = mean(results[, "true_p0"], na.rm = TRUE)
+    summarise_bf(results[, "BF10_logistic"], "_logistic"),
+    summarise_bf(results[, "BF10_cauchy"],   "_cauchy"),
+    mean_true_p0 = mean(results[, "true_p0"], na.rm = TRUE)
   )
 }
 
@@ -113,7 +133,7 @@ Summarise <- function(condition, results, fixed_objects = NULL) {
 smoke_test  <- FALSE
 force_rerun <- FALSE
 
-out_file <- here("output", "res_bf_calibration_jzs.rds")
+out_file <- here("output", "res_bf_calibration_jzs_v3.rds")
 
 if (smoke_test) {
   test_design <- Design[1:4, , drop = FALSE]
@@ -124,7 +144,8 @@ if (smoke_test) {
     analyse       = Analyse,
     summarise     = Summarise,
     fixed_objects = list(b0_range = c(0.4, 0.9), sd_b0 = 0.75,
-                         true_sd_re = 0.25, sd_prior_re = "exponential"),
+                         true_sd_re = 0.25, true_sd_slope = 0.10,
+                         sd_prior_re = "exponential"),
     parallel      = TRUE,
     ncores        = 4,
     packages      = c("brms", "posterior")
@@ -135,18 +156,19 @@ if (smoke_test) {
 } else if (!file.exists(out_file) || force_rerun) {
   res <- runSimulation(
     design        = Design,
-    replications  = 100,
+    replications  = 300,
     generate      = Generate,
     analyse       = Analyse,
     summarise     = Summarise,
     fixed_objects = list(b0_range = c(0.4, 0.9), sd_b0 = 0.75,
-                         true_sd_re = 0.25, sd_prior_re = "exponential"),
+                         true_sd_re = 0.25, true_sd_slope = 0.10,
+                         sd_prior_re = "exponential"),
     save_results  = TRUE,
     save_details  = list(
       safe                  = TRUE,
       out_rootdir           = here("output"),
-      save_results_dirname  = "Simulation_BFCalibration_JZS",
-      save_results_filename = "BFCalib_JZS_Cond"
+      save_results_dirname  = "Simulation_BFCalibration_JZS_v3",
+      save_results_filename = "BFCalib_JZS_v3_Cond"
     ),
     parallel = TRUE,
     ncores   = 10,
