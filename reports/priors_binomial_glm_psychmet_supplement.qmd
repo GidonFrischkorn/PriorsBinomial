@@ -394,7 +394,7 @@ ggplot(bf_heatmap_data,
 
 ## JZS/Cauchy Comparison: Full Results {#sec-jzs-full-results}
 
-@tbl-S-jzs-power gives full detection-rate results for the JZS/Cauchy comparison, supplementing the violin-plot figure in the main paper. It shows $P(\mathrm{BF}_{10} > 3)$ (power) and $P(\mathrm{BF}_{01} > 3)$ (false-null support) for both the matched Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
+@tbl-S-jzs-power gives full detection-rate results for the JZS/Cauchy comparison, supplementing the violin-plot figure in the main paper. It shows $P(\mathrm{BF}_{10} > 3)$ (detection rate) and $P(\mathrm{BF}_{01} > 3)$ (false-null support) for both the matched Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
 
 ```{r}
 #| label: tbl-S-jzs-power
