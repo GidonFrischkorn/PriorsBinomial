@@ -72,6 +72,12 @@ if (jzs_available) {
   jzs_summaries <- readRDS(here("output", "bf_calibration_jzs_summaries.rds"))
 }
 
+# Goal 2 extended: Information / Lindley consistency simulation
+consistency_available <- file.exists(here("output", "bf_calibration_consistency_summaries.rds"))
+if (consistency_available) {
+  consistency_summaries <- readRDS(here("output", "bf_calibration_consistency_summaries.rds"))
+}
+
 # Applied example
 applied_data_available <- file.exists(here("output", "applied_example_sensitivity.rds"))
 if (applied_data_available) {
@@ -119,11 +125,71 @@ To verify information consistency and Lindley consistency empirically, we ran a 
 
 - **Intercept prior family**: Logistic (matched; $\mathrm{sd}_{b_0} = 0.75$)
 - **Effect prior family**: Logistic (matched; $\mathrm{sd}_{b_1} = 0.25$)
-- **True effect** ($b_1$): 0.00, 0.20, 0.50, 1.00, 2.00, 3.00 (6 levels; extended range)
-- **Number of subjects**: 30, 100, 200, 500, 1000 (5 levels; extended range; $n_{\mathrm{subjects}}$ denotes participants per condition)
+- **True effect** ($b_1$): 0.00, 0.05, 0.10, 0.20, 0.30, 0.50 (6 levels)
+- **Number of subjects**: 20, 30, 50, 100, 200 (5 levels; $n_{\mathrm{subjects}}$ denotes participants per condition)
 - **Trials per subject**: 20 (fixed)
 
-This yields $6 \times 5 = 30$ conditions with 100 replications each.
+This yields $6 \times 5 = 30$ conditions with 50 replications each.
+
+@fig-S-consistency shows the median $\log_{10}(\mathrm{BF}_{10})$ as a function of the true effect and the number of subjects. Two consistency properties are visible. *Information consistency*: at any fixed sample size, evidence grows monotonically with the true effect size, so that larger effects produce larger Bayes Factors. *Sample-size (Lindley) consistency*: for any fixed non-null effect, evidence grows with the number of subjects, while under the true null ($b_1 = 0$) the Bayes Factor instead moves toward $H_0$ as the sample grows. The matched Logistic(0, 0.25) prior thus accumulates evidence in the correct direction along both axes.
+
+```{r}
+#| label: fig-S-consistency
+#| fig-cap: "Empirical information and sample-size (Lindley) consistency for the
+#|   matched Logistic(0, 0.25) effect prior. Points show the median
+#|   $\\log_{10}(\\mathrm{BF}_{10})$ across 50 replications; ribbons (left panel)
+#|   span the 25th--75th percentiles. Left: evidence as a function of true effect
+#|   size, with one line per sample size (information consistency: evidence grows
+#|   with effect size at fixed n). Right: evidence as a function of sample size,
+#|   with one line per true effect (Lindley consistency: evidence grows with n for
+#|   non-null effects, and moves toward $H_0$ under the true null). Dashed lines
+#|   mark $\\mathrm{BF}_{10} = 3$, $1$, and $1/3$."
+#| fig-height: 4.5
+#| fig-width: 10
+#| eval: !expr consistency_available
+
+library(patchwork)
+
+cons <- consistency_summaries |>
+  mutate(
+    n_lab  = factor(n_subjects, levels = sort(unique(n_subjects))),
+    b1_lab = factor(true_b1,    levels = sort(unique(true_b1)))
+  )
+
+hlines <- geom_hline(yintercept = c(log10(3), 0, log10(1/3)),
+                     linetype = "dashed", colour = "grey60", linewidth = 0.4)
+
+p_info <- cons |>
+  ggplot(aes(x = true_b1, y = median_log10_BF10,
+             colour = n_lab, fill = n_lab, group = n_lab)) +
+  hlines +
+  geom_ribbon(aes(ymin = q25_log10_BF10, ymax = q75_log10_BF10),
+              alpha = 0.12, colour = NA) +
+  geom_line(linewidth = 0.7) +
+  geom_point(size = 1.6) +
+  scale_colour_viridis_d("N subjects", option = "D", end = 0.9) +
+  scale_fill_viridis_d("N subjects", option = "D", end = 0.9) +
+  labs(x = expression("True effect " * b[1]),
+       y = expression(log[10](BF[10])),
+       subtitle = "Information consistency") +
+  prior_theme()
+
+p_lindley <- cons |>
+  filter(true_b1 %in% c(0, 0.05, 0.10, 0.20, 0.50)) |>
+  ggplot(aes(x = n_subjects, y = median_log10_BF10,
+             colour = b1_lab, group = b1_lab)) +
+  hlines +
+  geom_line(linewidth = 0.7) +
+  geom_point(size = 1.6) +
+  scale_x_continuous(breaks = sort(unique(cons$n_subjects))) +
+  scale_colour_viridis_d(expression(b[1]), option = "C", end = 0.9) +
+  labs(x = "N subjects (per condition)",
+       y = NULL,
+       subtitle = "Sample-size (Lindley) consistency") +
+  prior_theme()
+
+p_info + p_lindley
+```
 
 ### JZS/Cauchy Comparison Simulation
 
@@ -407,7 +473,12 @@ ggplot(bf_heatmap_data,
 #| eval: !expr jzs_available
 
 jzs_tbl <- readRDS(here("output", "bf_calibration_jzs_power_table.rds")) |>
+  filter((prior == "logistic" & sd_b1 == 0.25) |
+         (prior == "cauchy"   & sd_b1 > 0.7)) |>
   mutate(
+    prior_label = if_else(prior == "logistic",
+                          "Matched Logistic(0, 0.25)",
+                          "JZS Cauchy(0, sqrt(2)/2)"),
     P_BF10_gt3 = round(P_BF10_gt3, 2),
     P_BF01_gt3 = round(P_BF01_gt3, 2),
     col_label  = paste0("n=", n_subjects, " T=", n_trials)
@@ -445,10 +516,12 @@ knitr::kable(
 #| eval: !expr jzs_available
 
 jzs_continuous <- readRDS(here("output", "bf_calibration_jzs_continuous.rds")) |>
+  filter((prior == "logistic" & sd_b1 == 0.25) |
+         (prior == "cauchy"   & sd_b1 > 0.7)) |>
   mutate(
     prior_label    = case_when(
-      dist_b1 == "logistic" ~ "Matched\nLogistic(0, 0.25)",
-      dist_b1 == "cauchy"   ~ "JZS\nCauchy(0, sqrt(2)/2)"
+      prior == "logistic" ~ "Matched\nLogistic(0, 0.25)",
+      prior == "cauchy"   ~ "JZS\nCauchy(0, sqrt(2)/2)"
     ),
     n_trials_label = paste0("Trials per subject: ", n_trials),
     true_b1_label  = factor(paste0("b[1] == ", true_b1),
