@@ -31,9 +31,9 @@ saveRDS(summaries, here("output", "bf_calibration_jzs_summaries.rds"))
 message("Saved: output/bf_calibration_jzs_summaries.rds  (",
         nrow(summaries), " conditions)")
 
-# --- Power / Type I error table (long format, one row per prior × condition) --
+# --- Operating-characteristic rates table (long format, one row per prior × condition) --
 
-power_table <- summaries |>
+rates_table <- summaries |>
   pivot_longer(
     cols      = matches("^(P_BF10_gt3|P_BF01_gt3|n_valid)_(logistic|cauchy)$"),
     names_to  = c(".value", "prior"),
@@ -48,8 +48,8 @@ power_table <- summaries |>
   select(prior_label, sd_b1, prior, true_b1, n_subjects, n_trials,
          P_BF10_gt3, P_BF01_gt3, n_valid)
 
-saveRDS(power_table, here("output", "bf_calibration_jzs_power_table.rds"))
-message("Saved: output/bf_calibration_jzs_power_table.rds")
+saveRDS(rates_table, here("output", "bf_calibration_jzs_rates_table.rds"))
+message("Saved: output/bf_calibration_jzs_rates_table.rds")
 
 # --- Load per-condition raw BF10 values ---------------------------------------
 
