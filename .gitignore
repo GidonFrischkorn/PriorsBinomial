@@ -16,6 +16,14 @@ reports/*_files/
 reports/*.tex
 reports/*.fff
 
+# Archived AMPPS submission — rendered outputs (sources kept tracked)
+reports/ampps_submission_rejected/*.html
+reports/ampps_submission_rejected/*.pdf
+reports/ampps_submission_rejected/*.docx
+reports/ampps_submission_rejected/*_files/
+reports/ampps_submission_rejected/*.tex
+reports/ampps_submission_rejected/*.fff
+
 # Local files (working docs, DOCX)
 /local
 
