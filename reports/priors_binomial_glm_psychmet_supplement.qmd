@@ -601,11 +601,3 @@ re_pp_draws |>
   prior_theme()
 ```
 
-## Session Information
-
-```{r}
-#| label: session-info
-#| echo: true
-
-sessionInfo()
-```
