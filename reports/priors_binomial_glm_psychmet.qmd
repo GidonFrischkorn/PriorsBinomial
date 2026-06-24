@@ -94,7 +94,6 @@ jzs_summaries <- tryCatch(
 jzs_available <- !is.null(jzs_summaries)
 
 # Pre-computed figures from local/ scripts
-logbf_fig_available    <- file.exists(here("figures", "logbf_distributions.png"))
 roc_dual_fig_available <- file.exists(here("figures", "roc_dual_comparison.png"))
 auc_fig_available      <- file.exists(here("figures", "auc_jzs_comparison.png"))
 
@@ -185,7 +184,7 @@ The complete prior specification is:
 - **Fixed effects:** $b_0 \sim \mathrm{Logistic}(0, \mathrm{sd}_{b_0})$ (logit) or $\mathrm{Normal}(0, \mathrm{sd}_{b_0})$ (probit), matched to the link function; $b_1 \sim \mathrm{Logistic}(0, \mathrm{sd}_{b_1})$ or $\mathrm{Normal}(0, \mathrm{sd}_{b_1})$
 - **Random effects:** $u_j \sim \mathrm{Normal}(0, \sigma_u^2)$ with hyperprior $\sigma_u \sim \mathrm{Exponential}(\lambda)$
 
-Recommended scale values -- $\mathrm{sd}_{b_0} \approx 0.75$, $\mathrm{sd}_{b_1} \in [0.25, 0.30]$, and $\lambda = 4$ -- are derived from the three-step workflow in Steps 2 and 3 below.
+The scale of each prior ($\mathrm{sd}_{b_0}$, $\mathrm{sd}_{b_1}$, and the hyperprior rate $\lambda$) is left open here and examined systematically in Steps 2 and 3: we vary each scale across a wide range and let the prior predictive checks and Bayes Factor calibration identify well-behaved values. The resulting recommended defaults are summarised later (see [Recommendations](#sec-recommendations)).
 
 The Bayes Factor for the fixed effect $b_1$ compares:
 
@@ -471,26 +470,13 @@ The choice of effect prior family has only very little impact on the BF (@fig-bf
 
 A key desideratum for principled prior choice in hypothesis testing is that the prior should concentrate its mass on scientifically plausible effect sizes. The prior predictive analysis in Step 2 showed that the JZS/Cauchy default fails this desideratum — its heavy tails assign substantial probability to $|\delta p| > 0.30$ even at moderate scales. Here we characterize what different prior scales and families imply for BF behavior, separating the contribution of scale from that of family.
 
-To separate the contribution of prior scale from prior family, we ran a factorial simulation crossing two prior families (Logistic, Cauchy) and two prior scales ($\mathrm{sd}_{b_1} \in \{0.25,\, \sqrt{2}/2 \approx 0.707\}$), yielding four effect-prior conditions applied to the same simulated datasets. The scale $\sqrt{2}/2$ is the "medium" default of the BayesFactor R package, motivated by the JZS t-test convention [@rouder2009; @rouder2012] and used in logistic regression by @oberauer2019 (who applied the related scale 0.353). These crossed three true effect sizes ($b_1 \in \{0, 0.10, 0.20\}$), three sample sizes ($N \in \{20, 30, 50\}$), and two trial counts (20 or 50 per subject), yielding 36 design conditions. All four prior conditions used the matched Logistic(0, 0.75) intercept prior and Exponential(4) random-effects hyperprior. We ran 300 replications per design condition and estimated Bayes Factors via the Savage-Dickey density ratio.
+BF calibration is, at its core, a signal-detection problem: the Bayes Factor must discriminate datasets generated under a true effect from datasets generated under the null, and any fixed evidence threshold (such as $\mathrm{BF} > 3$) is simply a decision criterion imposed on a continuous statistic. This framing separates two questions that a single-threshold analysis conflates: how well the BF *discriminates* effects from null (its sensitivity), and *where* a chosen threshold places the decision boundary (its criterion). A receiver operating characteristic (ROC) analysis answers both at once -- it traces the trade-off between true- and false-positive rates across all thresholds, so the curve characterises discriminability while any single threshold is one operating point on it. We therefore present the calibration results as an ROC analysis.[^h0detect]
 
-```{r}
-#| label: fig-bf-jzs-logbf
-#| fig-cap: "Distribution of $\\log_{10}(\\mathrm{BF}_{10})$ for all four prior
-#|   combinations (Logistic/Cauchy $\\times$ scale 0.25/0.707) under the null
-#|   ($b_1 = 0$), a small effect ($b_1 = 0.10$), and a medium effect ($b_1 = 0.20$).
-#|   Columns show sample sizes ($N = 20, 30, 50$); rows show trial counts ($T = 20, 50$).
-#|   Within each ridge, solid (Logistic) and dashed (Cauchy) lines nearly coincide
-#|   at matched scales. Scale 0.707 shifts both distributions leftward relative to
-#|   the $\\pm\\log_{10}(3)$ decision thresholds (vertical dashed lines), reducing
-#|   BF mass in the evidence-for-$H_1$ region."
-#| out-width: "100%"
-#| eval: !expr logbf_fig_available
-knitr::include_graphics(here("figures", "logbf_distributions.png"))
-```
+[^h0detect]: We report both detection directions. For *$H_1$ detection*, a true positive is $\mathrm{BF}_{10} > t$ when an effect is present ($b_1 \neq 0$) and a false positive is $\mathrm{BF}_{10} > t$ when $b_1 = 0$. For *$H_0$ detection*, the roles reverse: a true positive is $\mathrm{BF}_{01} > t$ when the null holds ($b_1 = 0$) and a false positive is $\mathrm{BF}_{01} > t$ when an effect is present.
 
-@fig-bf-jzs-logbf shows the full distribution of $\log_{10}(\mathrm{BF}_{10})$ for all four prior combinations across the design space. At matched scales, Logistic and Cauchy produce nearly identical distributions — within each ridge, solid and dashed lines virtually coincide. The scale difference is the dominant factor. Under the true null ($b_1 = 0$), scale 0.707 shifts the distribution substantially leftward relative to the $\pm\log_{10}(3)$ decision boundaries: $P(\mathrm{BF}_{01} > 3) \approx 0.91$ at scale 0.707 versus $\approx 0.60$ at scale 0.25 for both families ($N = 30$, 20 trials). This conservatism comes at a direct cost for small effects: at $b_1 = 0.10$ and $N = 30$, scale 0.707 can only detect approximately 12% of effects ($P(\mathrm{BF}_{10} > 3)$) compared to 34% at scale 0.25. Prior scale moves BF mass relative to decision thresholds; prior family does not.
+To separate the contribution of prior scale from prior family, we ran a factorial simulation crossing two prior families (Logistic, Cauchy) and two prior scales ($\mathrm{sd}_{b_1} \in \{0.25,\, \sqrt{2}/2 \approx 0.707\}$), yielding four effect-prior conditions applied to the same simulated datasets. The scale $\sqrt{2}/2$ is the JZS/Cauchy default [@rouder2009; @rouder2012], also used for logistic regression by @oberauer2019. These crossed three true effect sizes ($b_1 \in \{0, 0.10, 0.20\}$), three sample sizes ($N \in \{20, 30, 50\}$), and two trial counts (20 or 50 per subject), yielding 36 design conditions. All four prior conditions used the matched Logistic(0, 0.75) intercept prior and Exponential(4) random-effects hyperprior. We ran 300 replications per design condition and estimated Bayes Factors via the Savage-Dickey density ratio. The full distributions of $\log_{10}(\mathrm{BF}_{10})$ across the design space are shown in the Supplementary Materials.
 
-The threshold-specific analysis in @fig-bf-jzs-logbf raises a natural question: is the scale advantage specific to the $\mathrm{BF} = 3$ threshold, or does it reflect a deeper difference in discriminability? There is a principled reason to expect no discriminability difference at all. For a scalar point-null test, the BF under any fixed, symmetric, continuous prior is -- to a good approximation -- a monotone function of a common evidence statistic: how far the likelihood is displaced from the null relative to its spread. A ROC curve depends only on how a statistic *orders* the datasets, not on its numerical values, and monotone transformations of the same statistic preserve that ordering. ROC curves should therefore coincide across priors wherever this monotonicity holds; what prior choice *can* do is move a fixed BF threshold to a different operating point along the shared curve. The simulation tests this heuristic expectation and, beyond it, locates each prior's operating point. @fig-bf-jzs-roc plots the full receiver operating characteristic (ROC) curve — the true positive rate against the false positive rate across all possible thresholds — for both $H_1$ detection ($\mathrm{BF}_{10} > t$) and $H_0$ detection ($\mathrm{BF}_{01} > t$).
+There is a principled reason to expect the prior scale to leave discriminability unchanged. For a scalar point-null test, the BF under any fixed, symmetric, continuous prior is -- to a good approximation -- a monotone function of a common evidence statistic: how far the likelihood is displaced from the null relative to its dispersion. Because an ROC curve depends only on how a statistic *orders* the datasets, monotone transformations of the same statistic trace out the same curve. What the choice of prior scale *can* do is move a given BF threshold to a different operating point along that shared curve. The simulation tests this expectation and, beyond it, locates each prior's operating point. @fig-bf-jzs-roc plots the full ROC curve -- the true-positive rate against the false-positive rate across all thresholds -- for both $H_1$ detection ($\mathrm{BF}_{10} > t$) and $H_0$ detection ($\mathrm{BF}_{01} > t$).
 
 ```{r}
 #| label: fig-bf-jzs-roc
@@ -506,22 +492,25 @@ The threshold-specific analysis in @fig-bf-jzs-logbf raises a natural question: 
 knitr::include_graphics(here("figures", "roc_dual_comparison.png"))
 ```
 
-Within each scale group, Logistic and Cauchy ROC curves nearly overlap in both panels. However, the $\mathrm{BF} = 3$ operating points (open circles) shift systematically with scale: scale 0.707 places the criterion higher on the $H_0$-detection curve and lower on the $H_1$-detection curve, confirming the criterion interpretation from @fig-bf-jzs-logbf. Critically, the ROC curves themselves — and therefore the area under the ROC curve (AUC) — do not differ across priors. @fig-bf-jzs-auc quantifies this directly.
+@fig-bf-jzs-roc confirms this expectation. Within each scale group, Logistic and Cauchy ROC curves nearly overlap in both detection directions. The $\mathrm{BF} = 3$ operating points (open circles), however, shift systematically with scale: relative to scale 0.25, scale 0.707 sits higher on the $H_0$-detection curve and lower on the $H_1$-detection curve. This is the criterion shift made concrete. At $N = 30$ and 20 trials, the wider scale supports the null more readily under a true null ($P(\mathrm{BF}_{01} > 3) \approx 0.91$ versus $\approx 0.60$ at scale 0.25) but detects far fewer small effects (at $b_1 = 0.10$, $P(\mathrm{BF}_{10} > 3) \approx 12\%$ versus $\approx 34\%$ at scale 0.25) -- two ends of the *same* curve, not two different curves. Critically, the ROC curves themselves — and therefore the area under the ROC curve (AUC) — do not differ across priors. @fig-bf-jzs-auc quantifies this directly.
 
 ```{r}
 #| label: fig-bf-jzs-auc
 #| fig-cap: "Area under the ROC curve (AUC; Wilcoxon estimator) with 95\\%
-#|   bootstrap CI ($n = 500$) for $H_1$ detection (left panel) and $H_0$ detection
-#|   (right panel) as a function of sample size. Colour encodes prior scale;
-#|   linetype encodes prior family. The dashed horizontal line marks AUC $= 0.50$
-#|   (chance). All four prior combinations produce indistinguishable AUC trajectories;
-#|   discriminability is driven by sample size, trial count, and effect size alone."
+#|   bootstrap CI ($n = 500$) for discriminating true effects ($H_1$) from the
+#|   null ($H_0$), as a function of sample size. Colour encodes prior scale;
+#|   linetype encodes prior family. Rows: true effect size; columns: trials per
+#|   condition. The dashed horizontal line marks AUC $= 0.50$ (chance). All four
+#|   prior combinations produce indistinguishable AUC trajectories; discriminability
+#|   is driven by sample size, trial count, and effect size alone. Because
+#|   $\\mathrm{BF}_{01} = 1/\\mathrm{BF}_{10}$, the AUC for $H_0$ detection is
+#|   identical, so a single panel characterises both directions."
 #| out-width: "100%"
 #| eval: !expr auc_fig_available
 knitr::include_graphics(here("figures", "auc_jzs_comparison.png"))
 ```
 
-Across all conditions, and as the monotonicity argument predicts, all four prior combinations produce indistinguishable AUC trajectories for both $H_1$ and $H_0$ detection. The factors that increase AUC are sample size, trial count, and true effect size: properties of the data, not of the prior. This decomposition has a direct interpretation in signal detection theory: prior scale is a criterion parameter, not a sensitivity parameter. It controls where the BF mass falls relative to any fixed decision threshold, setting the operating point on the ROC curve, but leaves the underlying discriminability of the test unchanged. Prior family contributes negligibly even to this criterion shift. Researchers who prefer the Cauchy family can adopt Cauchy(0, 0.25) and achieve BF behavior that is indistinguishable from the matched Logistic prior at the same scale. The advantage of matched priors is not calibration superiority over other prior families. It is that the prior predictive workflow provides a principled basis for scale selection, grounded in what the prior implies on the probability scale.
+Across all conditions, and as the monotonicity argument predicts, all four prior combinations produce indistinguishable AUC trajectories; the scale-to-scale differences are non-systematic and lie within bootstrap confidence intervals. Because $\mathrm{BF}_{01} = 1/\mathrm{BF}_{10}$, ranking datasets by evidence for $H_0$ is the exact reverse of ranking them by evidence for $H_1$, so a single AUC characterises both detection directions. The factors that increase AUC are sample size, trial count, and true effect size: properties of the data, not of the prior. This decomposition has a direct interpretation in signal detection theory: prior scale is a criterion parameter, not a sensitivity parameter. It controls where the BF mass falls relative to any fixed decision threshold, setting the operating point on the ROC curve, but leaves the underlying discriminability of the test unchanged. Prior family contributes negligibly even to this criterion shift. Researchers who prefer the Cauchy family can adopt Cauchy(0, 0.25) and achieve BF behavior that is indistinguishable from the matched Logistic prior at the same scale. The advantage of matched priors is not superior discriminability over other prior families. It is that the prior predictive workflow provides a principled basis for scale selection, grounded in what the prior implies on the probability scale.
 
 ### Effect of Random-Effects Hyperprior
 
@@ -571,58 +560,11 @@ The random-effects hyperprior (i.e., the prior on the standard deviation of indi
 
 ### Summary
 
-@tbl-bf-summary-rates summarises detection rates ($P(\mathrm{BF}_{10} > 3)$) and correct null-support rates ($P(\mathrm{BF}_{01} > 3)$) for the matched and JZS/Cauchy priors across representative conditions (20 trials per subject; full results in the Supplementary Materials). Each cell shows detection / null-support rate.
+The most important prior-choice factor across all conditions is the scale of the effect prior; the choice of prior family, intercept prior, and random-effects hyperprior had negligible effects. The signal-detection analysis locates *why*: prior scale acts as a decision criterion, not as a sensitivity parameter. At matched scales, Logistic and Cauchy priors achieve identical discriminability (equal AUC); changing the scale only slides the operating point along the shared ROC curve.
 
-```{r}
-#| label: tbl-bf-summary-rates
-#| tbl-cap: "Detection rates ($P(\\mathrm{BF}_{10} > 3)$) and correct null-support
-#|   rates ($P(\\mathrm{BF}_{01} > 3)$) for the recommended Logistic(0, 0.25) and
-#|   JZS Cauchy(0, $\\sqrt{2}/2$) priors at representative conditions (20 trials
-#|   per subject). Each cell shows detection rate / null-support rate. Under the null
-#|   ($b_1 = 0$), $P(\\mathrm{BF}_{01} > 3)$ is the probability of correctly
-#|   supporting $H_0$ (high values desirable); under nonzero effects, it is the
-#|   rate of misleading evidence for $H_0$. Each rate is estimated from 300
-#|   replications per condition; the Monte Carlo standard error of an estimated
-#|   rate $p$ is $\\sqrt{p(1-p)/300} \\leq 0.03$."
-#| eval: !expr jzs_available
+The criterion interpretation makes the practical trade-off explicit. The wider JZS/Cauchy scale places more mass on large effects, setting a strict implicit criterion for $H_1$: when a small genuine effect is present ($b_1 = 0.10$), it frequently produces misleading evidence for $H_0$ — the diffuse prior makes even a true small effect look like noise. The narrower matched scale is more sensitive to such effects, but correspondingly yields weaker evidence for a true null, correctly supporting $H_0$ less often when no effect is present (full detection and null-support rates across all conditions are in the Supplementary Materials). Both behaviours are two operating points on the same curve; which to favour is a decision about acceptable error rates, not a property of the prior family. For medium and large effects ($b_1 \geq 0.20$), all priors perform similarly.
 
-jzs_scale_val <- round(sqrt(2) / 2, 3)
-
-matched_rows <- jzs_summaries |>
-  filter(n_trials == 20, n_subjects %in% c(30, 50), sd_b1 == 0.25) |>
-  transmute(true_b1, n_subjects,
-            prior_label = "Matched",
-            P_BF10_gt3  = P_BF10_gt3_logistic,
-            P_BF01_gt3  = P_BF01_gt3_logistic)
-
-jzs_rows <- jzs_summaries |>
-  filter(n_trials == 20, n_subjects %in% c(30, 50), sd_b1 == jzs_scale_val) |>
-  transmute(true_b1, n_subjects,
-            prior_label = "JZS",
-            P_BF10_gt3  = P_BF10_gt3_cauchy,
-            P_BF01_gt3  = P_BF01_gt3_cauchy)
-
-bind_rows(matched_rows, jzs_rows) |>
-  mutate(
-    col_label = paste0("N=", n_subjects),
-    cell      = paste0(round(P_BF10_gt3, 2), " / ", round(P_BF01_gt3, 2))
-  ) |>
-  select(prior_label, true_b1, col_label, cell) |>
-  pivot_wider(
-    names_from  = c(col_label, prior_label),
-    names_glue  = "{col_label} {prior_label}",
-    values_from = cell
-  ) |>
-  knitr::kable(
-    col.names = c("True $b_1$",
-                  "N=30 Matched", "N=30 JZS",
-                  "N=50 Matched", "N=50 JZS"),
-    align  = c("l", rep("r", 4)),
-    escape = FALSE
-  )
-```
-
-Across all conditions, the most important prior-choice factor is the scale of the effect prior. The choice of the prior family, the intercept prior, and the random-effects hyperprior had negligible effects. The formal properties of matched-prior BFs can be stated precisely. Model selection (Lindley) consistency holds for any proper prior with positive density at the true parameter value: as the sample grows, the BF increasingly favours the correct hypothesis [@bayarri2012]. Monotone growth of evidence with effect size at fixed sample size is demonstrated empirically in the supplementary consistency analysis. The Cauchy prior's wider scale places more mass on large effects. When a small genuine effect is present ($b_1 = 0.10$), this wide scale sets a strict implicit criterion and frequently produces misleading evidence for $H_0$ — the diffuse prior makes even a true small effect look like noise. The matched Logistic prior, by contrast, signals evidence for such an effect, or at least suspends judgment. This greater sensitivity to small effects is one side of a trade-off, however: the narrower matched scale also yields weaker evidence for a true null, correctly supporting $H_0$ less often than the wider JZS/Cauchy prior when no effect is present (@tbl-bf-summary-rates). Which side of this trade-off to favour is a decision about acceptable error rates, not a property of the prior family. This difference is a scale effect, not a family effect: the ROC analysis shows that at matched scales, Logistic and Cauchy priors achieve identical discriminability. For medium and large effects ($b_1 \geq 0.20$), all priors perform similarly. What matched priors add, then, is not sharper BF calibration but a substantively interpretable basis for choosing the prior scale. Still, when computing Bayes Factors for drawing inferences, we recommend running a prior sensitivity analysis by computing BFs across a small set of plausible effect-prior widths (e.g., $\mathrm{sd}_{b_1} \in \{0.15, 0.25, 0.35\}$) to test the robustness of the results over varying prior scales.
+The formal properties of matched-prior BFs can be stated precisely. Model selection (Lindley) consistency holds for any proper prior with positive density at the true parameter value: as the sample grows, the BF increasingly favours the correct hypothesis [@bayarri2012]. Monotone growth of evidence with effect size at fixed sample size is demonstrated empirically in the supplementary consistency analysis. What matched priors add, then, is not sharper BF calibration but a substantively interpretable basis for choosing the prior scale. Still, when computing Bayes Factors for drawing inferences, we recommend running a prior sensitivity analysis by computing BFs across a small set of plausible effect-prior widths (e.g., $\mathrm{sd}_{b_1} \in \{0.15, 0.25, 0.35\}$) to test the robustness of the results over varying prior scales.
 
 ### Transparency and Openness
 
@@ -644,7 +586,7 @@ Researchers who want to apply the recommendations directly without reading the d
 
 : Summary of default prior recommendations for binomial GLMs. All values assume sum-to-zero $\pm 1$ coding and predictors scaled to $\mathrm{SD} = 1$; see the Scaling section below for other coding schemes. {#tbl-prior-summary}
 
-The three workflow steps converge on a coherent set of recommendations. Priors shape Bayes Factors, so their implications on the probability scale must be examined rather than assumed. But priors also encode prior beliefs about plausible effects. Choosing overly wide priors (as commonly done with "weakly informative" defaults) biases BFs toward the null and implies implausible prior beliefs about effect sizes on the probability scale. Our recommended priors satisfy both criteria simultaneously: They produce plausible prior predictive distributions on the probability scale (Step 2) and well-calibrated Bayes Factors across a realistic range of effects (Step 3). Yet the converse does not hold: Some priors that happen to yield adequate BF calibration may still imply implausible effect sizes (e.g., the Cauchy).
+The three workflow steps converge on a coherent set of recommendations. Priors shape Bayes Factors, but priors also encode prior beliefs about plausible effects, so their implications on the probability scale must be examined rather than assumed. Choosing overly wide priors (as commonly done with "weakly informative" defaults) biases BFs toward the null and implies implausible prior beliefs about effect sizes on the probability scale. Our recommended priors satisfy both criteria simultaneously: They produce plausible prior predictive distributions on the probability scale (Step 2) and well-calibrated Bayes Factors across a realistic range of effects (Step 3). Yet the converse does not hold: Some priors that happen to yield adequate BF calibration may still imply implausible effect sizes (e.g., the Cauchy).
 
 Researchers with no domain-specific prior knowledge can use the default priors directly. If prior information about expected effect sizes is available, the prior scale can be adjusted accordingly. Furthermore, when the predictor's SD differs from 1, the default prior scale should be adapted using the scaling formulas below.
 
@@ -819,13 +761,13 @@ In each of these cases, the three-step logic remains the same: identify whether 
 
 ## Discussion
 
-We have proposed and empirically validated a three-step workflow for prior specification in GLMs with nonlinear link functions: (1) Identify matched priors via the probability integral transform, (2) evaluate implied prior predictive distributions on the probability scale, and (3) calibrate priors for Bayes Factor hypothesis testing and compare to the JZS/Cauchy default. Applying this workflow to binomial models, we recommend the matched $\mathrm{Logistic}(0, 0.75)$ intercept prior and matched Logistic effect priors with scale 0.25 to 0.30 for logistic regression (with analogous Normal priors for probit), and $\mathrm{Exponential}(4)$ for random-effects hyperpriors as default priors.
+We have proposed and validated a three-step workflow for prior specification in GLMs with nonlinear link functions: (1) Identify matched priors via the probability integral transform, (2) evaluate implied prior predictive distributions on the probability scale, and (3) calibrate priors for Bayes Factor hypothesis testing and compare to the JZS/Cauchy default. Applying this workflow to binomial models, we recommend the matched $\mathrm{Logistic}(0, 0.75)$ intercept prior and matched Logistic effect priors with scale 0.25 to 0.30 for logistic regression (with analogous Normal priors for probit), and $\mathrm{Exponential}(4)$ for random-effects hyperpriors as default priors.
 
-There are four main take-home messages from our results. First, the matched prior principle provides a theoretically grounded anchor that is missing from current practice: by matching the prior family to the link function via the probability integral transform, the intercept prior becomes interpretable on the probability scale. This design-independent approach offers an alternative to GLM extensions of g-priors [@bove2011; @liclyde2018], which are design-dependent because they substitute the Fisher information matrix (evaluated either at a reference prediction or at the maximum likelihood estimate) for $(X'X)$, and provides a practically accessible default for the applied researcher. Second, the prior predictive simulations revealed that the choice of prior *family* matters far less than the choice of prior *scale* — a finding that held for both fixed effects and random-effects hyperpriors. Third, the signal detection analysis of BF calibration reveals that prior scale functions as a criterion parameter, not a sensitivity parameter: it shifts the BF operating point on the ROC curve but leaves discriminability unchanged. Choosing a prior is therefore choosing a decision criterion. The advantage of the matched-prior workflow is that prior predictive simulation provides a principled, substantively interpretable basis for this criterion choice — one grounded in what the prior implies on the probability scale. Fourth, the random-effects hyperprior has negligible influence on Bayes factors for fixed effects, so the recommended defaults are robust to this modelling choice.
+There are four main take-home messages from our results. First, the matched prior principle provides a theoretically grounded anchor that is missing from current practice: by matching the prior family to the link function via the probability integral transform, the intercept prior becomes interpretable on the probability scale. This design-independent approach offers an alternative to GLM extensions of g-priors [@bove2011; @liclyde2018], which are design-dependent because they substitute the Fisher information matrix (evaluated either at a reference prediction or at the maximum likelihood estimate) for $(X'X)$, and provides a practically accessible default for the applied researcher. Second, the choice of prior *family* matters far less than the choice of prior *scale* for the calibration of Bayes Factors — a finding that held for both fixed effects and random-effects hyperpriors. Family is not irrelevant for *interpretability*, however: the heavy-tailed Cauchy implies implausible effect sizes on the probability scale even at narrow scales, which is why the matched families remain preferable on the prior-predictive criterion even though all families calibrate similarly once their scales are matched. Third, the signal detection analysis of BF calibration reveals that prior scale functions as a criterion parameter, not a sensitivity parameter: it shifts the BF operating point on the ROC curve but leaves discriminability unchanged. Choosing a prior is therefore choosing a decision criterion. The advantage of the matched-prior workflow is that prior predictive simulation provides a principled, substantively interpretable basis for this criterion choice — one grounded in what the prior implies on the probability scale. Fourth, the random-effects hyperprior has negligible influence on Bayes factors for fixed effects, so the recommended defaults are robust to this modelling choice.
 
 These results also clarify when each approach to prior specification is preferable. When genuine domain knowledge about expected response probabilities is available — from pilot data, meta-analyses, or expert judgment — conditional mean priors [@bedrick1996; @hosack2026] put that knowledge to work directly and are the more appropriate choice, particularly when estimation rather than hypothesis testing is the goal. When no such knowledge is available and the goal is Bayes Factor hypothesis testing, the matched-prior workflow provides an interpretable, design-independent default. G-prior extensions [@bove2011; @liclyde2018] remain attractive when design-adaptive regularization is the priority. Design independence is, moreover, not uniformly desirable: priors whose width adapts to the sample size, such as the unit-information prior, have a principled rationale of their own, and researchers anticipating very large samples may prefer such an adaptive choice over a fixed-scale default.
 
-Our demonstration is limited to the binomial case, and the specific prior scale recommendations are calibrated for the typical range of effect sizes encountered in psychological experiments (effect sizes in the range of $|b_1| \leq 0.50$ logit units). In applied terms: the recommendations are intended for paradigms where the true accuracy difference between conditions is unlikely to exceed approximately 20 percentage points — covering most detection, recognition, and choice experiments in cognitive psychology, but not paradigms with very large training effects or ceiling-limited designs. Researchers in other fields may need to adjust the defaults based on domain-specific effect size distributions. The BF calibration used the Savage-Dickey density ratio; other BF estimation methods (e.g., bridge sampling for non-nested comparisons) were not evaluated here — see @oberauer2026bf for a systematic comparison of the reliability, bias, and computational cost of bridge sampling and the Savage-Dickey density ratio. Future work should extend the empirical evaluation to (a) probit links — the theoretical result applies identically but empirical calibration has not been confirmed; (b) designs with random slopes — the present workflow addresses random intercepts only, and omitting random slopes when they are present can inflate false-positive rates in Bayesian hypothesis testing [@oberauer2022]; and (c) continuous predictors, where the interpretation of $\delta p$ depends on the predictor's scale and range.
+Our demonstration is limited to the binomial case, and the specific prior scale recommendations are calibrated for the typical range of effect sizes encountered in psychological experiments (effect sizes in the range of $|b_1| \leq 0.50$ logit units). In applied terms: the recommendations are intended for paradigms where the true accuracy difference between conditions is unlikely to exceed approximately 20 percentage points — covering most detection, recognition, and choice experiments in cognitive psychology, but not paradigms with very large training effects or ceiling-limited designs. Researchers in other fields may need to adjust the defaults based on domain-specific effect size distributions. The BF calibration used the Savage-Dickey density ratio; other BF estimation methods (e.g., bridge sampling for non-nested comparisons) were not evaluated here — see @oberauer2026bf for a systematic comparison of the reliability, bias, and computational cost of bridge sampling and the Savage-Dickey density ratio. Future work should extend the empirical evaluation to (a) probit links — the theoretical result applies identically, and a preliminary confirmatory simulation in the project repository supports well-behaved Bayes Factor calibration for the matched Normal prior, but a full calibration matched to the logit results across the design space remains to be reported; (b) designs with random slopes — the present workflow addresses random intercepts only, and omitting random slopes when they are present can inflate false-positive rates in Bayesian hypothesis testing [@oberauer2022]; and (c) continuous predictors, where the interpretation of $\delta p$ depends on the predictor's scale and range.
 
 The workflow itself, however, is general. Any model with a CDF-based link function admits matched priors, and prior predictive simulation is universally applicable. We hope that the proposed workflow will aid the research community in obtaining default priors for ordinal, count, and distributional regression models, and ultimately help building a library of principled default priors for hypothesis testing across the full range of GLM families used in psychological research.
 

@@ -71,6 +71,7 @@ jzs_available <- file.exists(here("output", "bf_calibration_jzs_summaries.rds"))
 if (jzs_available) {
   jzs_summaries <- readRDS(here("output", "bf_calibration_jzs_summaries.rds"))
 }
+logbf_fig_available <- file.exists(here("figures", "logbf_distributions.png"))
 
 # Goal 2 extended: Information / Lindley consistency simulation
 consistency_available <- file.exists(here("output", "bf_calibration_consistency_summaries.rds"))
@@ -501,7 +502,24 @@ knitr::kable(
 )
 ```
 
-@fig-S-jzs-heatmap shows the median $\log_{10}(\mathrm{BF}_{10})$ across all JZS comparison conditions as a heatmap, with the two priors in separate columns. This complements the distributional comparison in the main paper by showing the full factorial pattern across sample sizes, trial counts, and effect sizes.
+@fig-S-jzs-logbf shows the full distribution of $\log_{10}(\mathrm{BF}_{10})$ for all four prior combinations across the design space, underlying the ROC analysis in the main paper. At matched scales, Logistic and Cauchy produce nearly identical distributions — within each ridge, solid and dashed lines virtually coincide. The scale difference is the dominant factor: under the true null ($b_1 = 0$), scale 0.707 shifts the distribution substantially leftward relative to the $\pm\log_{10}(3)$ decision boundaries, reducing BF mass in the evidence-for-$H_1$ region. Prior scale moves BF mass relative to the decision thresholds; prior family does not.
+
+```{r}
+#| label: fig-S-jzs-logbf
+#| fig-cap: "Distribution of $\\log_{10}(\\mathrm{BF}_{10})$ for all four prior
+#|   combinations (Logistic/Cauchy $\\times$ scale 0.25/0.707) under the null
+#|   ($b_1 = 0$), a small effect ($b_1 = 0.10$), and a medium effect ($b_1 = 0.20$).
+#|   Columns show sample sizes ($N = 20, 30, 50$); rows show trial counts ($T = 20, 50$).
+#|   Within each ridge, solid (Logistic) and dashed (Cauchy) lines nearly coincide
+#|   at matched scales. Scale 0.707 shifts both distributions leftward relative to
+#|   the $\\pm\\log_{10}(3)$ decision thresholds (vertical dashed lines), reducing
+#|   BF mass in the evidence-for-$H_1$ region."
+#| out-width: "100%"
+#| eval: !expr logbf_fig_available
+knitr::include_graphics(here("figures", "logbf_distributions.png"))
+```
+
+@fig-S-jzs-heatmap shows the median $\log_{10}(\mathrm{BF}_{10})$ across all JZS comparison conditions as a heatmap, with the two priors in separate columns. This complements the distributional view by showing the full factorial pattern across sample sizes, trial counts, and effect sizes.
 
 ```{r}
 #| label: fig-S-jzs-heatmap
