@@ -19,6 +19,12 @@ author:
     affiliations:
       - name: University of Zurich
 floatsintext: true
+mask: false
+masked-citations:
+  - oberauer2019
+  - oberauer2022
+  - oberauer2026bf
+  - frischkorn2026preprint
 format:
   apaquarto-docx: default
   apaquarto-html: default
@@ -206,7 +212,7 @@ G-priors [@liang2008] specify that the regression coefficients follow a multivar
 
 $$\beta \sim \mathrm{Normal}\!\left(\beta_0,\; g \cdot I(\beta_0)^{-1}\right)$$
 
-where $g > 0$ is a scalar hyperparameter (or mixture weight) and $I(\beta_0)$ is the Fisher information matrix evaluated at a reference point $\beta_0$. For Gaussian linear models, $I(\beta_0)^{-1} = \sigma^2 (X'X)^{-1}$, giving a prior covariance that is proportional to the ordinary least-squares covariance matrix. @bove2011 and @liclyde2018 extend this framework to GLMs by replacing $(X'X)$ with the GLM Fisher information, which for binomial models is the IRLS weight matrix:
+where $g > 0$ is a scalar hyperparameter (or mixture weight) and $I(\beta_0)$ is the Fisher information matrix evaluated at a reference point $\beta_0$. For Gaussian linear models, $I(\beta_0)^{-1} = \sigma^2 (X'X)^{-1}$, giving a prior covariance that is proportional to the ordinary least-squares covariance matrix. @bove2011 and @liclyde2018 extend this framework to GLMs by replacing $(X'X)$ with the GLM Fisher information, which for binomial models is the IRLS weight matrix (@bove2011 use the *expected* information evaluated at a reference prediction, $\hat{\beta}_0 = 0$; @liclyde2018 use the *observed* information at the maximum likelihood estimate):
 
 $$I(\beta_0) = X' W(\beta_0) X$$
 
