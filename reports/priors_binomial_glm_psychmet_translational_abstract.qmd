@@ -1,0 +1,36 @@
+---
+title: "Principled Default Priors for Bayesian Hypothesis Testing in Binomial GLMs: A Matched-Prior Framework with Empirical Evaluation"
+shorttitle: "Translational Abstract"
+author:
+  - name: Gidon T. Frischkorn
+    orcid: 0000-0002-5055-9764
+    email: gidon.frischkorn@psychologie.uzh.ch
+    corresponding: true
+    affiliations:
+      - name: University of Zurich
+        department: Department of Psychology
+  - name: Joscha Dutli
+    orcid: 0009-0009-5007-1281
+    affiliations:
+      - name: University of Zurich
+        department: Department of Psychology
+  - name: Philipp Musfeld
+    orcid: 0000-0002-6539-0105
+    affiliations:
+      - name: University of Amsterdam
+        department: Department of Psychology
+      - name: University of Zurich
+        department: Department of Psychology
+  - name: Klaus Oberauer
+    orcid: 0000-0003-3902-7318
+    affiliations:
+      - name: University of Zurich
+        department: Department of Psychology
+format:
+  apaquarto-pdf:
+    documentmode: man
+---
+
+## Translational Abstract
+
+When psychologists use Bayesian analysis to test whether an experimental result is real -- for example, whether a memory training improved accuracy -- they must supply the software with a prior distribution that describes what effect sizes they consider plausible before seeing the data. For the most common type of outcome in laboratory experiments (how often participants respond correctly), no standard guidance has existed for choosing these distributions when using logistic regression. This matters because a poorly chosen prior can cause the software to give unreliable evidence, particularly for small effects. This paper provides clear default recommendations. The key idea is simple: because logistic regression uses a specific mathematical function to convert model parameters to probabilities, there is a natural family of distributions -- the logistic family -- that produces a completely neutral (uniform) starting assumption on the probability scale. We call these 'matched priors.' Starting from this neutral anchor, we show through extensive simulations which specific parameter values yield well-behaved Bayes factors across the range of sample sizes and effect sizes typical in psychological research. Critically, prior scale functions as a decision threshold: it shifts where the Bayes factor falls relative to any fixed criterion but does not change how well it discriminates true effects from null. The advantage of the matched-prior approach is principled scale selection: choosing the prior on the probability scale, where effect sizes are directly interpretable. Ready-to-use code for the brms R package is provided so that researchers can apply the recommendations without technical expertise in Bayesian computation.

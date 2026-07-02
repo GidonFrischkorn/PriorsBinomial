@@ -22,7 +22,7 @@ author:
       - name: University of Zurich
         department: Department of Psychology
   - name: Klaus Oberauer
-    orcid: 0000-0001-8815-6189
+    orcid: 0000-0003-3902-7318
     affiliations:
       - name: University of Zurich
         department: Department of Psychology
