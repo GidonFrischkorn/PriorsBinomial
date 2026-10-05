@@ -601,6 +601,29 @@ plot_floor_ceiling_heatmap(summaries_pp)
 ```
 
 ```{r}
+#| label: tbl-S-floor-ceiling
+#| tbl-cap: "Largest intercept prior scale $s_{b_0}$ for which the implied prior on
+#|   the baseline probability places at most a given share of its mass outside
+#|   the given bounds, for the link-consistent family of each link, and the mass
+#|   outside the bounds at $s_{b_0} = 0.75$. Values are exact (computed from the
+#|   prior CDF at the transformed bounds)."
+
+readRDS(here("output", "t2_intercept_thresholds.rds")) |>
+  filter((link == "logit" & family == "logistic") | (link == "probit" & family == "normal")) |>
+  transmute(Link = link,
+            Bounds = sprintf("%.3g / %.3g", lower, upper),
+            threshold = sprintf("%.0f%%", 100 * threshold),
+            max_scale = sprintf("%.2f", max_scale_exact),
+            mass_075 = sprintf("%.1f%%", 100 * mass_at_0.75)) |>
+  tidyr::pivot_wider(names_from = threshold, values_from = max_scale,
+                     names_prefix = "Max. scale, ") |>
+  relocate(mass_075, .after = last_col()) |>
+  rename(`Mass outside at 0.75` = mass_075) |>
+  arrange(Link, Bounds) |>
+  knitr::kable(align = "llrrrr")
+```
+
+```{r}
 #| label: fig-S2-re-delta-p
 #| fig-cap: "Effect size heterogeneity by hyperprior family and scale for the
 #|   intercept + slope model. At equal mean, all families produce similar

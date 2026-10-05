@@ -242,22 +242,66 @@ For the effect $b_1$, the probability integral transform gives no comparable res
 
 ## Step 2: Implied Priors on the Probability Scale {#sec-prior-predictive}
 
-We simulated implied prior distributions for Binomial GLMs across a factorial design crossing two link functions (logit, probit), three prior families for both intercept and effect coefficients (Normal, Logistic, and Cauchy), and a range of prior scale values. The Normal and Logistic families were included because each matches one of the two link functions; the Cauchy was included because @rouder2012 proposed Cauchy-distributed default priors for linear models, and [one of us]{.content-visible unless-meta="mask"}[prior work]{.content-visible when-meta="mask"} [@oberauer2019] has proposed them also for logistic models. The intercept prior scale ($s_{b_0}$) ranged from 0.50 to 1.50; the effect prior scale ($s_{b_1}$) ranged from 0.10 to 2.00, yielding 720 factorial combinations in total (see Supplementary Materials for the complete design specification). For each condition, we drew 10,000 samples from the joint prior on $(b_0, b_1)$ and computed the implied distributions on the probability scale.[^software]
+```{r}
+#| label: setup-step2
+#| include: false
+
+# Conditional (fixed-baseline) transforms, computed by scripts/12_ConditionalTransforms.R
+t2_grid    <- readRDS(here("output", "t2_conditional_grid.rds"))
+t2_floor   <- readRDS(here("output", "t2_intercept_floor_ceiling.rds"))
+t2_crit    <- readRDS(here("output", "t2_effect_percentile_scales.rds"))
+t2_part    <- readRDS(here("output", "t2_participants.rds"))
+t2_verif   <- readRDS(here("output", "t2_verification.rds"))
+
+f2  <- function(x) sprintf("%.2f", x)
+pct <- function(x) sprintf("%.1f%%", 100 * x)
+near <- function(a, b) abs(a - b) < 1e-9
+
+floor_mass <- function(lnk, fam, s, lo = 0.05) {
+  out <- t2_floor |> filter(link == lnk, family == fam, near(scale, s), near(lower, lo)) |> pull(mass)
+  stopifnot(length(out) == 1)
+  out
+}
+grid_val <- function(col, lnk, fam, s, p, type = "nominal") {
+  out <- t2_grid |> filter(scale_type == type, link == lnk, family == fam,
+                           near(scale, s), near(p0, p)) |> pull({{ col }})
+  stopifnot(length(out) == 1)
+  out
+}
+grid_iqr <- function(col, lnk, fam, s_ref, p) {
+  out <- t2_grid |> filter(scale_type == "iqr_matched_to_logistic", link == lnk, family == fam,
+                           near(logistic_ref_scale, s_ref), near(p0, p)) |> pull({{ col }})
+  stopifnot(length(out) == 1)
+  out
+}
+part_val <- function(col, s_u, usd, p = 0.7, s = 0.25) {
+  out <- t2_part |> filter(link == "logit", family == "logistic", near(scale, s), near(p0, p),
+                           near(sigma_u, s_u), near(u_sd, usd)) |> pull({{ col }})
+  stopifnot(length(out) == 1)
+  out
+}
+n_verif  <- nrow(t2_verif)
+max_ks   <- max(t2_verif$max_ks)
+```
+
+Step 2 makes the priors visible on the probability scale. For the intercept, the implied prior on the baseline probability $g^{-1}(b_0)$ follows from the CDF of the prior. For the effect, we follow the model specification and compute the implied prior on $\delta p(\eta_0)$ at fixed baseline probabilities $p_0 = g^{-1}(\eta_0)$, by transforming the prior on $b_1$ with the Jacobian of $\delta p$. No sampling is needed: for a fixed $\eta_0$, $\delta p$ is an increasing function of $b_1$, so its density and quantiles follow directly from those of the prior.[^transform-check] We varied the link function (logit, probit), the prior family (Normal, Logistic, Cauchy), the prior scale, and the baseline probability ($p_0$ from 0.5 to 0.9).[^software]
+
+[^transform-check]: We checked the analytical densities, distribution functions and quantiles against $10^6$ Monte Carlo draws for `r n_verif` combinations of link, family, scale and baseline. The largest Kolmogorov--Smirnov distance was `r sprintf("%.4f", max_ks)`. Code: `scripts/12_ConditionalTransforms.R`.
 
 [^software]: All simulations were conducted in R 4.5.2 [@r2023] using the SimDesign package [version 2.25; @chalmers2020]. Bayesian models for Step 3 were fitted with brms [version 2.23.0; @burkner2017; @burkner2018] using CmdStan [version 2.38.0; @stan2023] via the cmdstanr interface [version 0.9.0; @gabry2024]. Marginal likelihoods for bridge sampling were estimated with the bridgesampling package [version 1.2.1; @gronau2017]. [All simulation code and analysis scripts are available at <https://github.com/GidonFrischkorn/PriorsBinomial>.]{.content-visible unless-meta="mask"}[All simulation code and analysis scripts are available in a public repository (link withheld for masked review).]{.content-visible when-meta="mask"}
 
 ### Intercept Prior {#sec-pp-intercept}
 
-The intercept $b_0$ determines the baseline success probability before any experimental manipulation. A poorly chosen intercept prior can place substantial mass near $p = 0$ or $p = 1$, predicting that participants perform at floor or ceiling even before any experimental effect is applied.
+The intercept $b_0$ determines the baseline success probability. A poorly chosen intercept prior places substantial mass near $p = 0$ or $p = 1$, that is, it treats floor and ceiling performance as plausible before any experimental manipulation.
 
 ```{r}
 #| label: fig-1-p-intercept
-#| fig-cap: "Implied prior distribution of success probability
-#|   p = $g^{-1}(b_0)$ for each intercept prior scale (rows) and link function
+#| fig-cap: "Implied prior on the baseline probability
+#|   $g^{-1}(b_0)$ for each intercept prior scale (rows) and link function
 #|   (columns). At $s_{b_0} = 1.0$, the link-consistent prior (Logistic for logit,
-#|   Normal for probit) produces a perfectly uniform distribution. Reducing
-#|   $s_{b_0}$ to 0.75 pulls mass away from floor and ceiling. Dashed
-#|   curves show exact analytical densities of the link-consistent distribution family."
+#|   Normal for probit) gives a uniform distribution. Reducing
+#|   $s_{b_0}$ to 0.75 moves mass away from floor and ceiling. Dashed
+#|   curves show the exact densities of the link-consistent family."
 #| fig-height: 10
 #| fig-width: 10
 
@@ -267,69 +311,115 @@ fig1_draws <- draws_long |>
 plot_p_intercept_ridges(fig1_draws, sd_b1_focus = 0.25)
 ```
 
-@fig-1-p-intercept confirms the analytical result from the previous step: at $s_{b_0} = 1.0$ with the link-consistent prior, the distribution of $p$ is uniform. At $s_{b_0} = 0.75$, mass is pulled away from 0 and 1, appropriate for experiments avoiding floor and ceiling effects. The Cauchy, which does not match either link, produces heavier tails. We recommend $s_{b_0} = 0.75$ as the default, that is, $\mathrm{Logistic}(0, 0.75)$ for the logit link and $\mathrm{Normal}(0, 0.75)$ for the probit link (see the Supplementary Figures in the Supplementary Materials for a quantification of how much probability mass each prior specification assigns to the floor/ceiling regions).
+At $s_{b_0} = 1$, the link-consistent prior places exactly `r pct(floor_mass("logit", "logistic", 1))` of its mass below 0.05 or above 0.95, as a uniform distribution must (@fig-1-p-intercept). At $s_{b_0} = 0.75$, this mass drops to `r pct(floor_mass("logit", "logistic", 0.75))` for the logit link and `r pct(floor_mass("probit", "normal", 0.75))` for the probit link. We use $s_{b_0} = 0.75$, that is, $\mathrm{Logistic}(0, 0.75)$ for the logit link and $\mathrm{Normal}(0, 0.75)$ for the probit link. The choice between 0.75 and 1 is a judgment about how plausible floor and ceiling baselines are. For experiments designed to avoid floor and ceiling effects, we consider a baseline below 0.05 or above 0.95 less plausible than one near 0.5, and a scale of 1 treats all baselines as equally plausible. The Supplementary Materials report the floor and ceiling mass for other bounds and scales. As Step 3 shows, the intercept prior has little influence on the Bayes factor for the effect. A prior from the other family can be far off: a $\mathrm{Logistic}(0, 0.75)$ prior under the probit link places `r pct(floor_mass("probit", "logistic", 0.75))` of its mass below 0.05 or above 0.95.
 
 ### Effect Prior {#sec-pp-effect}
 
-The Logistic family is used for $b_1$ by parsimony -- the same family as the intercept -- rather than by a direct probability integral transform derivation; the appropriate scale is determined from the implied prior distributions below.
-
-The prior on effect parameter $b_1$ determines how much prior mass falls on small versus large effects. Due to the nonlinear link, we must compute the implied prior on $\delta p$ by drawing from the joint prior on $(b_0, b_1)$ and transforming through the inverse link. Concretely, the implied prior on $\delta p$ is computed as $\delta p = g^{-1}(b_0 + b_1) - g^{-1}(b_0 - b_1)$. @fig-3-delta-p shows how the choice of $s_{b_1}$ translates into implied experimental effects in $\delta p$, holding the intercept prior fixed at the link-consistent recommendation ($\mathrm{Logistic}(0, 0.75)$ for logit; $\mathrm{Normal}(0, 0.75)$ for probit).
-
 ```{r}
 #| label: fig-3-delta-p
-#| fig-cap: "Implied prior distribution of $\\delta p$ (signed effect size on
-#|   the probability scale) for each effect prior scale (facets), color-coded by
-#|   prior family (ridges). Shown for the logit link with link-consistent Logistic(0, 0.75)
-#|   intercept prior. At $s_{b_1} = 0.25$, Normal and Logistic priors concentrate
-#|   mass on effects up to about 30 percentage points. The Cauchy assigns
-#|   substantial probability to effects exceeding 50 percentage points even at
-#|   this moderate scale. Dotted lines mark +/-0.10, +/-0.20, +/-0.30."
-#| fig-height: 12
-#| fig-width: 14
+#| fig-cap: "Implied prior on the probability difference $\\delta p$ between
+#|   the two conditions for a participant with baseline probability $p_0$ (rows),
+#|   under the logit link. Columns show the effect prior scale $s_{b_1}$; colors
+#|   show the prior family. Densities are exact transforms of the prior on $b_1$.
+#|   Under the Cauchy prior the density diverges near $\\delta p = \\pm 1$; it is
+#|   cut off at the upper limit of each panel. Dotted lines mark
+#|   $\\delta p = \\pm 0.10, \\pm 0.20, \\pm 0.30$."
+#| fig-height: 8
+#| fig-width: 10
 
-fig2_draws <- draws_long |>
-  filter(
-    link == "logit",
-    dist_b0 == "logistic",
-    sd_b0 == 0.75
-  )
+dp_grid <- tidyr::expand_grid(
+  p0     = c(0.5, 0.7, 0.9),
+  scale  = c(0.15, 0.25, 0.40, 0.707),
+  family = c("normal", "logistic", "cauchy"),
+  d      = seq(-0.985, 0.985, by = 0.005)
+) |>
+  group_by(p0, scale, family) |>
+  mutate(density = d_delta_p(d, eta0 = qlogis(p0[1]), link = "logit",
+                             family = family[1], scale = scale[1])) |>
+  group_by(p0, scale) |>
+  mutate(cap = 1.15 * max(density[family != "cauchy"]),
+         density = pmin(density, cap)) |>
+  ungroup() |>
+  mutate(family = factor(dist_labels[family], levels = c("Normal", "Logistic", "Cauchy")),
+         p0_label = paste0("p[0] == ", p0),
+         scale_label = factor(paste0("s[b[1]] == ", scale),
+                              levels = paste0("s[b[1]] == ", c(0.15, 0.25, 0.4, 0.707))))
 
-plot_delta_p_ridges(fig2_draws, sd_b0_focus = 0.75)
+ggplot(dp_grid, aes(x = d, y = density, colour = family)) +
+  geom_vline(xintercept = c(-0.3, -0.2, -0.1, 0.1, 0.2, 0.3),
+             linetype = "dotted", colour = "grey60", linewidth = 0.3) +
+  geom_line(linewidth = 0.7) +
+  facet_grid(p0_label ~ scale_label, scales = "free_y",
+             labeller = label_parsed) +
+  scale_colour_viridis_d("Prior family", option = "D", end = 0.85) +
+  scale_x_continuous(expression(delta * italic(p)), limits = c(-1, 1),
+                     breaks = c(-1, -0.5, 0, 0.5, 1)) +
+  scale_y_continuous("Density") +
+  prior_theme() +
+  theme(legend.position = "bottom")
 ```
 
-The Cauchy prior stands apart at every scale: even at $s_{b_1} = 0.25$, its heavy tails assign substantial probability to $|\delta p| > 0.50$. Note that effects of $|\delta p| \approx 1.0$ would require perfect accuracy in one condition and zero correct responses in the other -- a scenario that is virtually impossible in practice. As Step 3 will show, this matters less for the BF's ability to discriminate $H_1$ from $H_0$ -- which is governed by the prior's scale -- than for the interpretability of the prior itself: the heavy tails make the effective spread on the probability scale hard to anticipate from the nominal scale parameter.
+The effect prior is placed on the link scale, but its meaning on the probability scale depends on the baseline (@fig-3-delta-p). Under $\mathrm{Logistic}(0, 0.25)$, 90% of the prior mass lies below $|\delta p| =$ `r f2(grid_val(q90, "logit", "logistic", 0.25, 0.5))` for a participant at $p_0 = 0.5$, below `r f2(grid_val(q90, "logit", "logistic", 0.25, 0.7))` at $p_0 = 0.7$, and below `r f2(grid_val(q90, "logit", "logistic", 0.25, 0.9))` at $p_0 = 0.9$. The same prior thus expects smaller probability differences for participants near ceiling, which matches the compression of differences near the bounds of the probability scale.
+
+At the same nominal scale, the three families imply very different priors on $\delta p$. At $s_{b_1} = 0.25$ and $p_0 = 0.5$, the 90th percentile of $|\delta p|$ is `r f2(grid_val(q90, "logit", "normal", 0.25, 0.5))` for the Normal, `r f2(grid_val(q90, "logit", "logistic", 0.25, 0.5))` for the Logistic, and `r f2(grid_val(q90, "logit", "cauchy", 0.25, 0.5))` for the Cauchy family. Much of this difference reflects that the scale parameter means different things across families: the standard deviation of a $\mathrm{Logistic}(0, s)$ variable is $1.81\,s$, and the Cauchy has no standard deviation. When the families are instead compared at equal interquartile range of $b_1$ (Normal scale `r f2(grid_iqr(scale, "logit", "normal", 0.25, 0.5))`, Logistic 0.25, Cauchy `r f2(grid_iqr(scale, "logit", "cauchy", 0.25, 0.5))`), their medians of $|\delta p|$ coincide, and the probability of $|\delta p| > 0.20$ is `r f2(grid_iqr(p_gt_0.2, "logit", "normal", 0.25, 0.5))`, `r f2(grid_iqr(p_gt_0.2, "logit", "logistic", 0.25, 0.5))` and `r f2(grid_iqr(p_gt_0.2, "logit", "cauchy", 0.25, 0.5))`. The differences grow further out in the tails, with 90th percentiles of `r f2(grid_iqr(q90, "logit", "normal", 0.25, 0.5))`, `r f2(grid_iqr(q90, "logit", "logistic", 0.25, 0.5))` and `r f2(grid_iqr(q90, "logit", "cauchy", 0.25, 0.5))`. For comparison, the $\mathrm{Cauchy}(0, \sqrt{2}/2)$ prior used as the JZS-motivated reference in Step 3 places `r pct(grid_val(p_gt_0.3, "logit", "cauchy", 0.707, 0.5))` of its mass on $|\delta p| > 0.30$ at $p_0 = 0.5$, compared with `r pct(grid_val(p_gt_0.3, "logit", "logistic", 0.25, 0.5))` for $\mathrm{Logistic}(0, 0.25)$.
+
+Choosing an effect prior scale requires a criterion, and any criterion is a judgment about which effects are plausible. One way to state such a judgment is: a given share of the prior mass should lie below a given probability difference at a typical baseline. @tbl-effect-criterion shows the scale that each combination of share and difference implies for the logit link with the Logistic family. A researcher who wants 90% of the prior mass below a difference of 0.30 at a baseline of 0.7, for example, would choose a scale of `r f2(t2_crit |> filter(link == "logit", family == "logistic", near(p0, 0.7), near(percentile, 0.9), near(target, 0.3)) |> pull(scale_required))`. Step 3 examines what the scale implies for the Bayes factor, and the Recommendations combine both.
+
+<!-- TODO (after T5): state the recommended effect scale and the criterion it follows from, as a judgment call with sensitivity (Gidon decision 2026-10-05). -->
 
 ```{r}
-#| label: setup-pp-effect-stats
-#| include: false
+#| label: tbl-effect-criterion
+#| tbl-cap: "Effect prior scale $s_{b_1}$ at which a given percentile of
+#|   $|\\delta p|$ equals a given probability difference (target), for the logit link and
+#|   the Logistic family, at baseline probabilities 0.5 and 0.7. Values are exact
+#|   (computed from the quantile function of the transformed prior)."
 
-# Summary statistics for effect prior plausibility comparison
-# JZS Cauchy(0, sqrt(2)/2) ~ 0.707; closest grid value is 0.75
-pp_effect_stats <- draws_long |>
-  filter(link == "logit", dist_b0 == "logistic", sd_b0 == 0.75,
-         sd_b1 %in% c(0.25, 0.75)) |>
-  group_by(dist_b1, sd_b1) |>
-  summarise(
-    p90       = quantile(abs_delta_p, 0.90),
-    prop_gt30 = mean(abs_delta_p > 0.30) * 100,
-    .groups   = "drop"
-  )
-
-p90_logistic_25  <- pp_effect_stats |>
-  filter(dist_b1 == "logistic", sd_b1 == 0.25) |> pull(p90)
-prop_logistic_25 <- pp_effect_stats |>
-  filter(dist_b1 == "logistic", sd_b1 == 0.25) |> pull(prop_gt30)
-p90_normal_25    <- pp_effect_stats |>
-  filter(dist_b1 == "normal",   sd_b1 == 0.25) |> pull(p90)
-prop_normal_25   <- pp_effect_stats |>
-  filter(dist_b1 == "normal",   sd_b1 == 0.25) |> pull(prop_gt30)
-# Cauchy at sd = 0.75 is the closest available grid value to sqrt(2)/2 ~ 0.707
-prop_cauchy_jzs  <- pp_effect_stats |>
-  filter(dist_b1 == "cauchy",   sd_b1 == 0.75) |> pull(prop_gt30)
-fold_excess      <- prop_cauchy_jzs / prop_logistic_25
+t2_crit |>
+  filter(link == "logit", family == "logistic") |>
+  arrange(p0, target, percentile) |>
+  transmute(percentile,
+            col  = paste0("p0 = ", p0, ", target ", f2(target)),
+            cell = f2(scale_required)) |>
+  tidyr::pivot_wider(names_from = col, values_from = cell) |>
+  mutate(percentile = paste0(100 * percentile, "th")) |>
+  rename(Percentile = percentile) |>
+  knitr::kable(align = "lrrrrrr")
 ```
 
-We use the 90th percentile of $|\delta p|$ as the primary plausibility summary: 90% of the prior mass falls below this value, so a lower 90th percentile indicates more conservative prior assumptions about effect sizes. At $s_{b_1} = 0.25$, the scale we recommend as default, the Logistic(0, 0.25) gives a 90th percentile of `r round(p90_logistic_25, 2)` and the Normal(0, 0.25) gives `r round(p90_normal_25, 2)`. Both concentrate mass well within the range of plausible accuracy differences. Concretely, only `r round(prop_logistic_25, 1)`% of the Logistic prior's mass falls above $|\delta p| = 0.30$, an accuracy difference that would already be considered large in most cognitive paradigms. The $\mathrm{Cauchy}(0, \sqrt{2}/2)$, the JZS-motivated default, assigns `r round(prop_cauchy_jzs, 1)`% of its mass to effects this large -- a `r round(fold_excess, 1)`-fold excess relative to the recommended prior that reflects primarily its much larger scale (0.707 vs. 0.25) rather than the Cauchy family per se; as Step 3 shows, family differences are negligible at equal nominal scales. We return to the BF calibration consequences below. Values up to $s_{b_1} = 0.50$ remain defensible when very large effects are plausible. We recommend $s_{b_1} \in [0.25, 0.30]$ as the default range when continuous predictors are scaled to $\mathrm{SD} = 1$ and categorical predictors use sum-to-zero $\pm 1$ coding.
+### Participants Who Differ in Their Baseline {#sec-pp-participants}
+
+```{r}
+#| label: fig-delta-p-participants
+#| fig-cap: "Implied prior on $\\delta p$ under $\\mathrm{Logistic}(0, 0.25)$ and the
+#|   logit link for a typical participant ($u_{0j} = 0$, baseline 0.7) and for
+#|   participants one random-intercept standard deviation below and above
+#|   ($\\sigma_0 = 0.5$ on the logit scale)."
+#| fig-height: 4
+#| fig-width: 7
+
+part_grid <- tidyr::expand_grid(u_sd = c(-1, 0, 1),
+                                d = seq(-0.985, 0.985, by = 0.005)) |>
+  mutate(eta0 = qlogis(0.7) + 0.5 * u_sd) |>
+  group_by(u_sd) |>
+  mutate(density = d_delta_p(d, eta0 = eta0[1], link = "logit",
+                             family = "logistic", scale = 0.25),
+         label = sprintf("%s (baseline %.2f)",
+                         c("-1 SD", "Typical", "+1 SD")[u_sd[1] + 2],
+                         plogis(eta0[1]))) |>
+  ungroup() |>
+  mutate(label = forcats::fct_reorder(label, u_sd))
+
+ggplot(part_grid, aes(x = d, y = density, colour = label)) +
+  geom_line(linewidth = 0.8) +
+  scale_colour_viridis_d("Participant", option = "D", end = 0.85) +
+  scale_x_continuous(expression(delta * italic(p))) +
+  coord_cartesian(xlim = c(-0.8, 0.8)) +
+  scale_y_continuous("Density") +
+  prior_theme() +
+  theme(legend.position = "bottom")
+```
+
+Because the transform depends on the baseline, the same prior implies different effects for different participants. @fig-delta-p-participants shows this for a typical participant with baseline 0.7 and for participants one random-intercept standard deviation ($\sigma_0 = 0.5$) below and above. The 90th percentile of $|\delta p|$ is `r f2(part_val(q90, 0.5, -1))` for the participant below, `r f2(part_val(q90, 0.5, 0))` for the typical participant, and `r f2(part_val(q90, 0.5, 1))` for the participant above. The spread across participants grows with $\sigma_0$: at $\sigma_0 = 1$, the 90th percentiles range from `r f2(part_val(q90, 1, 1))` to `r f2(part_val(q90, 1, -1))`. The prior on $b_1$ therefore describes a typical participant, and its implications for individual participants depend on how strongly baselines vary. Random slopes add further variation, because a participant's effect on the link scale is $b_1 + u_{1j}$; the implied priors above assume $u_{1j} = 0$.
 
 ### Random Effects Hyperprior {#sec-pp-re}
 
