@@ -1,0 +1,44 @@
+% response-letter: tcolorbox styles for the response divs.
+%
+% This file owns the GEOMETRY and TYPOGRAPHY of the boxes only. The color
+% palette (rlComment, rlReply, rlChanges, rlQuoted) is injected into the
+% preamble by response-letter.lua from the `response-letter: colors:`
+% metadata — change colors in the YAML, not here. tcolorbox resolves colors
+% at use time, so the definition order does not matter.
+\usepackage[svgnames]{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{caption}
+\usepackage{pifont}
+
+\newtcolorbox{CommentBox}{
+  breakable, enhanced,
+  colback=rlComment!5, colframe=rlComment!60,
+  boxrule=0pt, leftrule=2.5pt, arc=1pt,
+  left=7pt, right=7pt, top=6pt, bottom=6pt,
+  before skip=10pt, after skip=10pt,
+  fontupper=\itshape
+}
+
+\newtcolorbox{ReplyBox}{
+  breakable, enhanced,
+  colback=rlReply!4, colframe=rlReply!45,
+  boxrule=0pt, leftrule=2.5pt, arc=1pt,
+  left=7pt, right=7pt, top=6pt, bottom=6pt,
+  before skip=10pt, after skip=10pt
+}
+
+\newtcolorbox{ChangesBox}{
+  breakable, enhanced,
+  colback=rlChanges!12, colframe=rlChanges!80,
+  boxrule=0pt, leftrule=2.5pt, arc=1pt,
+  left=7pt, right=7pt, top=6pt, bottom=6pt,
+  before skip=10pt, after skip=10pt
+}
+
+\newtcolorbox{QuoteBox}{
+  breakable, enhanced,
+  colback=rlQuoted!8, colframe=rlQuoted,
+  boxrule=0pt, leftrule=3pt, arc=0pt,
+  left=9pt, right=7pt, top=6pt, bottom=6pt,
+  before skip=8pt, after skip=8pt
+}

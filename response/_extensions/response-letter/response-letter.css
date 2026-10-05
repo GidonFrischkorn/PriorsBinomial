@@ -1,0 +1,101 @@
+/* response-letter: HTML styling.
+ *
+ * The palette is injected by response-letter.lua as CSS custom properties
+ * (:root { --rl-comment: ...; --rl-comment-bg: ...; ... }) from the
+ * `response-letter: colors:` metadata. The var() fallbacks below mirror the
+ * default palette so the stylesheet also works standalone. */
+
+div.comment,
+div.reply,
+div.changes,
+div.quoted {
+  padding: 0.6em 0.9em;
+  margin: 1em 0;
+  border-left: 4px solid;
+  border-radius: 3px;
+}
+
+div.comment {
+  background: var(--rl-comment-bg, #fbf4f4);
+  border-color: var(--rl-comment, #b22222);
+  font-style: italic;
+}
+
+div.reply {
+  background: var(--rl-reply-bg, #f6faff);
+  border-color: var(--rl-reply, #1e90ff);
+}
+
+div.changes {
+  background: var(--rl-changes-bg, #f1f7f1);
+  border-color: var(--rl-changes, #8fbc8f);
+}
+
+div.quoted {
+  background: var(--rl-quoted-bg, #f5f5f5);
+  border-color: var(--rl-quoted, #696969);
+  border-radius: 0;
+}
+
+/* labels injected by the Lua filter */
+div.box-label p {
+  margin: 0 0 0.35em 0;
+  font-style: normal;
+  letter-spacing: 0.02em;
+}
+
+div.box-label-comment p { color: color-mix(in srgb, var(--rl-comment, #b22222) 75%, black); }
+div.box-label-reply p   { color: color-mix(in srgb, var(--rl-reply, #1e90ff) 70%, black); }
+div.box-label-changes p { color: color-mix(in srgb, var(--rl-changes, #8fbc8f) 55%, black); }
+div.box-label-quoted p  { color: #4a4a4a; font-size: 0.9em; }
+
+/* reply status */
+div.reply.status-todo {
+  border-style: dashed;
+  border-width: 0 0 0 4px;
+}
+
+div.box-label-todo p { color: #b22222; }
+
+/* nested quote inside a reply keeps tighter spacing */
+div.reply div.quoted {
+  margin: 0.8em 0;
+}
+
+/* letterhead generated from the response-letter metadata */
+div.letterhead {
+  margin: 1.5em 0 2em 0;
+}
+
+div.letterhead p {
+  margin: 0.15em 0;
+}
+
+div.letterhead p:last-child {
+  margin-top: 1.2em;
+}
+
+/* closing + signature */
+div.closing {
+  margin-top: 2.5em;
+}
+
+div.closing p {
+  margin: 0.15em 0;
+}
+
+/* summary of changes */
+div.response-summary {
+  margin: 1.5em 0;
+  padding: 0.6em 0.9em;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+}
+
+div.response-summary > p {
+  margin: 0 0 0.35em 0;
+}
+
+div.response-summary ul {
+  margin: 0;
+}

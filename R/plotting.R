@@ -34,7 +34,7 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
 
   draws_long <- draws_long |>
     dplyr::mutate(
-      sd_b0_label = paste0("sd[b[0]] == ", sd_b0),
+      sd_b0_label = paste0("s[b[0]] == ", sd_b0),
       dist_b0     = factor(dist_b0, levels = c("cauchy", "normal", "logistic"),
                            labels = dist_b0_levels)
     )
@@ -63,7 +63,7 @@ plot_p_intercept_ridges <- function(draws_long, sd_b1_focus = 0.25) {
     if (lnk == "logit")  d_logistic_on_p(p, scale = sd)
     else                  d_normal_on_p(p, sigma = sd)
   }, ref_data$p, ref_data$sd_b0, ref_data$link)
-  ref_data$sd_b0_label <- paste0("sd[b[0]] == ", ref_data$sd_b0)
+  ref_data$sd_b0_label <- paste0("s[b[0]] == ", ref_data$sd_b0)
   ref_data$dist_b0 <- factor(ref_data$dist_b0, levels = dist_b0_levels)
 
   ref_data <- ref_data |>
@@ -117,14 +117,14 @@ plot_delta_p_ridges <- function(draws_long, sd_b0_focus = 0.75) {
   draws_long$dist_b1 <- factor(draws_long$dist_b1,
     levels = c("cauchy", "normal", "logistic"),
     labels = c("Cauchy", "Normal", "Logistic"))
-  draws_long$sd_b1_label <- paste0("sd[b[1]] == ", draws_long$sd_b1)
+  draws_long$sd_b1_label <- paste0("s[b[1]] == ", draws_long$sd_b1)
   # Order facets by numeric sd_b1 value
   sd_b1_order <- sort(unique(as.numeric(as.character(
     factor(draws_long$sd_b1)
   ))))
   draws_long$sd_b1_label <- factor(
     draws_long$sd_b1_label,
-    levels = paste0("sd[b[1]] == ", sd_b1_order)
+    levels = paste0("s[b[1]] == ", sd_b1_order)
   )
 
   ggplot2::ggplot(
@@ -187,7 +187,7 @@ plot_floor_ceiling_heatmap <- function(summaries, threshold = 0.10) {
       option = "C", direction = -1,
       limits = c(0, max(dat$prob_floor_ceiling, 0.20))
     ) +
-    ggplot2::scale_x_discrete(expression(sd[b[0]])) +
+    ggplot2::scale_x_discrete(expression(s[b[0]])) +
     ggplot2::scale_y_discrete("Intercept prior family") +
     ggplot2::facet_wrap(~link, labeller = ggplot2::labeller(link = link_labels)) +
     prior_theme() +
@@ -226,7 +226,7 @@ plot_quantile_profile <- function(summaries, sd_b0_focus = 0.75) {
     ggplot2::geom_line(linewidth = 0.8) +
     ggplot2::geom_hline(yintercept = c(0.10, 0.20, 0.30),
                         linetype = "dotted", linewidth = 0.4, color = "grey60") +
-    ggplot2::scale_x_continuous(expression(sd[b[1]])) +
+    ggplot2::scale_x_continuous(expression(s[b[1]])) +
     ggplot2::scale_y_continuous(
       expression("Quantile of" ~ group("|", delta * italic(p), "|")),
       limits = c(0, 1)
@@ -261,7 +261,7 @@ plot_link_equivalence <- function(summaries, sd_b0_focus = 0.75) {
     ggplot2::geom_line(linewidth = 0.8) +
     ggplot2::geom_hline(yintercept = c(0.10, 0.20, 0.30),
                         linetype = "dotted", linewidth = 0.4, color = "grey60") +
-    ggplot2::scale_x_continuous(expression(sd[b[1]])) +
+    ggplot2::scale_x_continuous(expression(s[b[1]])) +
     ggplot2::scale_y_continuous(
       expression("90th percentile of" ~ group("|", delta * italic(p), "|")),
       limits = c(0, 1)
@@ -311,7 +311,7 @@ plot_misfit_heatmap <- function(summaries) {
       expression(P(italic(p) < 0.05 ~ "or" ~ italic(p) > 0.95)),
       option = "C", direction = -1
     ) +
-    ggplot2::scale_x_discrete(expression(sd[b[0]])) +
+    ggplot2::scale_x_discrete(expression(s[b[0]])) +
     ggplot2::scale_y_discrete("Link + prior family") +
     prior_theme() +
     ggplot2::theme(legend.position = "right")
@@ -411,7 +411,7 @@ plot_bf_validation_bland_altman <- function(bf_data) {
     ) +
     ggplot2::scale_colour_viridis_d("Prior family", option = "D", end = 0.85) +
     ggplot2::scale_shape_manual(
-      expression(sd[b[1]]),
+      expression(s[b[1]]),
       values = c("0.25" = 16, "0.5" = 17)
     ) +
     ggplot2::labs(

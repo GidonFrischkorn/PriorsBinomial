@@ -24,9 +24,31 @@ reports/ampps_submission_rejected/*_files/
 reports/ampps_submission_rejected/*.tex
 reports/ampps_submission_rejected/*.fff
 
+# Archived Psychological Methods submission (R0) — rendered outputs (sources kept tracked)
+reports/psychmet_submission_R0/*.html
+reports/psychmet_submission_R0/*.pdf
+reports/psychmet_submission_R0/*.docx
+reports/psychmet_submission_R0/*_files/
+reports/psychmet_submission_R0/*.tex
+reports/psychmet_submission_R0/*.fff
+reports/psychmet_submission_R0/*.ttt
+
+# Response letter — rendered outputs
+response/*.html
+response/*.pdf
+response/*.docx
+response/*_files/
+response/*.tex
+
 # Local files (working docs, DOCX)
 /local
 
 # OS
 .DS_Store
 .positai
+
+# Run logs (local only)
+logs/
+
+# Response letter source quotes confidential reviews verbatim: keep local while the repo is public
+response/response_to_reviewers.qmd

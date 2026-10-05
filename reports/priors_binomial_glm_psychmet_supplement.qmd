@@ -88,19 +88,19 @@ if (consistency_available) {
 
 ## Full Simulation Design
 
-### Prior Predictive Simulation (Step 2)
+### Implied Priors on the Probability Scale (Step 2)
 
-The prior predictive simulation crossed the following factors:
+The probability-scale analysis crossed the following factors:
 
 - Link function: logit, probit (2 levels)
 - Intercept prior family ($b_0$): Normal, Logistic, Cauchy (3 levels)
-- Intercept prior SD ($\mathrm{sd}_{b_0}$): 0.50, 0.75, 1.00, 1.50 (4 levels)
+- Intercept prior scale ($s_{b_0}$): 0.50, 0.75, 1.00, 1.50 (4 levels)
 - Effect prior family ($b_1$): Normal, Logistic, Cauchy (3 levels)
-- Effect prior SD ($\mathrm{sd}_{b_1}$): 0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 1.50, 2.00 (10 levels)
+- Effect prior scale ($s_{b_1}$): 0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 1.50, 2.00 (10 levels)
 
 This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each condition, we drew 10 replications of 10,000 samples using the SimDesign package.
 
-A separate prior predictive simulation for the random-effects hyperprior (referenced in the Random Effects Hyperprior section of the main text) held the fixed-effects priors at the recommended matched configuration (Logistic(0, 0.75) intercept, Logistic(0, 0.25) effect) and crossed:
+A separate probability-scale analysis for the random-effects hyperprior (referenced in the Random Effects Hyperprior section of the main text) held the fixed-effects priors at the recommended link-consistent configuration (Logistic(0, 0.75) intercept, Logistic(0, 0.25) effect) and crossed:
 
 - Hyperprior family: Exponential, Gamma(shape = 2), Half-Normal, Half-Student-*t*(df = 3) (4 levels)
 - Hyperprior mean: 0.15, 0.25, 0.50, 1.00, 2.50 (5 levels)
@@ -112,40 +112,40 @@ This yields $4 \times 5 \times 2 = 40$ conditions. For each condition, we drew 1
 
 The BF calibration crossed:
 
-- Intercept prior family: Logistic, Normal (2 levels; both at $\mathrm{sd}_{b_0} = 0.75$)
+- Intercept prior family: Logistic, Normal (2 levels; both at $s_{b_0} = 0.75$)
 - Effect prior family: Normal, Logistic, Cauchy (3 levels)
-- Effect prior SD: 0.25, 0.50 (2 levels)
+- Effect prior scale: 0.25, 0.50 (2 levels)
 - True effect ($b_1$): 0, 0.05, 0.10, 0.20, 0.50 (5 levels)
 - Number of subjects: 30, 60, 100 (3 levels)
 - Trials per subject: 20, 50 (2 levels)
 
 This yields $2 \times 3 \times 2 \times 5 \times 3 \times 2 = 360$ conditions with 100 replications each.
 
-A separate random-effects simulation held fixed-effects priors at the recommended matched configuration and varied only the hyperprior: Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4), yielding 90 conditions with 100 replications each.
+A separate random-effects simulation held fixed-effects priors at the recommended link-consistent configuration and varied only the hyperprior: Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4), yielding 90 conditions with 100 replications each.
 
 ### Consistency Simulation
 
-To verify the consistency behavior of matched-prior Bayes factors empirically, we ran a focused simulation with the matched Logistic(0, 0.25) prior. We generated data under a between-subjects design: $N = 2 \times n_{\mathrm{subjects}}$ participants each contributing one binomial count from $n_{\mathrm{trials}}$ trials in a single condition ($x \in \{+1, -1\}$, sum-to-zero coded). We included participant-level random intercepts in both data generation and model fitting. The consistency properties examined here depend on the prior density at zero relative to posterior concentration around the true effect; they do not depend on the between- versus within-subjects structure of the design, and the results generalize to within-subjects (repeated-measures) hierarchical models.
+To verify the consistency behavior of Bayes factors under link-consistent priors empirically, we ran a focused simulation with the link-consistent Logistic(0, 0.25) prior. We generated data under a between-subjects design: $N = 2 \times n_{\mathrm{subjects}}$ participants each contributing one binomial count from $n_{\mathrm{trials}}$ trials in a single condition ($x \in \{+1, -1\}$, sum-to-zero coded). We included participant-level random intercepts in both data generation and model fitting. The consistency properties examined here depend on the prior density at zero relative to posterior concentration around the true effect; they do not depend on the between- versus within-subjects structure of the design, and the results generalize to within-subjects (repeated-measures) hierarchical models.
 
-- Intercept prior family: Logistic (matched; $\mathrm{sd}_{b_0} = 0.75$)
-- Effect prior family: Logistic (matched; $\mathrm{sd}_{b_1} = 0.25$)
+- Intercept prior family: Logistic (link-consistent; $s_{b_0} = 0.75$)
+- Effect prior family: Logistic (link-consistent; $s_{b_1} = 0.25$)
 - True effect ($b_1$): 0.00, 0.05, 0.10, 0.20, 0.30, 0.50 (6 levels)
 - Number of subjects: 20, 30, 50, 100, 200 (5 levels; $n_{\mathrm{subjects}}$ denotes participants per condition)
 - Trials per subject: 20 (fixed)
 
 This yields $6 \times 5 = 30$ conditions with 50 replications each.
 
-@fig-S-consistency shows the median $\log_{10}(\mathrm{BF}_{10})$ as a function of the true effect and the number of subjects. Three properties are visible, and we label them separately. *Monotone evidence growth in effect size*: at any fixed sample size, evidence grows monotonically with the true effect size, so that larger effects produce larger Bayes factors. (Note that this is weaker than strict information consistency in the sense of @bayarri2012, which requires the BF to diverge for extreme data at fixed $n$; no proper prior attains that property in binomial models, because the likelihood is bounded for finite data.) *Sample-size (Lindley) consistency*: for any fixed non-null effect, evidence for $H_1$ grows with the number of subjects. *Evidence accumulation under the null*: under the true null ($b_1 = 0$), the Bayes factor increasingly favors $H_0$ as the sample grows. The matched Logistic(0, 0.25) prior thus accumulates evidence in the correct direction along both axes.
+@fig-S-consistency shows the median $\log_{10}(\mathrm{BF}_{10})$ as a function of the true effect and the number of subjects. Three properties are visible, and we label them separately. *Monotone evidence growth in effect size*: at any fixed sample size, evidence grows monotonically with the true effect size, so that larger effects produce larger Bayes factors. (Note that this is weaker than strict information consistency in the sense of @bayarri2012, which requires the BF to diverge for extreme data at fixed $n$; no proper prior attains that property in binomial models, because the likelihood is bounded for finite data.) *Sample-size (Lindley) consistency*: for any fixed non-null effect, evidence for $H_1$ grows with the number of subjects. *Evidence accumulation under the null*: under the true null ($b_1 = 0$), the Bayes factor increasingly favors $H_0$ as the sample grows. The link-consistent Logistic(0, 0.25) prior thus accumulates evidence in the correct direction along both axes.
 
 ```{r}
 #| label: fig-S-consistency
-#| fig-cap: "Empirical consistency behavior of the matched Logistic(0, 0.25)
+#| fig-cap: "Empirical consistency behavior of the link-consistent Logistic(0, 0.25)
 #|   effect prior. Points show the median
 #|   $\\log_{10}(\\mathrm{BF}_{10})$ across 50 replications; ribbons (left panel)
 #|   span the 25th--75th percentiles. Left: evidence as a function of true effect
 #|   size, with one line per sample size (evidence grows monotonically with effect
 #|   size at fixed $n$). Right: evidence as a function of sample size, with one
-#|   line per true effect (sample-size [Lindley] consistency: evidence for $H_1$
+#|   line per true effect (sample-size consistency: evidence for $H_1$
 #|   grows with $n$ for non-null effects; separately, under the true null the BF
 #|   increasingly favors $H_0$ as $n$ grows). Dashed lines
 #|   mark $\\mathrm{BF}_{10} = 3$, $1$, and $1/3$."
@@ -198,9 +198,9 @@ p_info + p_lindley
 
 ### JZS/Cauchy Comparison Simulation
 
-To directly compare the matched prior against the JZS/Cauchy default [@rouder2012], we crossed prior scale and design factors, fitting both effect-prior families to every simulated dataset:
+To directly compare the link-consistent prior against the JZS/Cauchy default [@rouder2012], we crossed prior scale and design factors, fitting both effect-prior families to every simulated dataset:
 
-- Effect prior scale ($\mathrm{sd}_{b_1}$): 0.25, $\sqrt{2}/2 \approx 0.707$ (2 levels)
+- Effect prior scale ($s_{b_1}$): 0.25, $\sqrt{2}/2 \approx 0.707$ (2 levels)
 - Effect prior family: Logistic, Cauchy (both fitted to each dataset)
 - True effect ($b_1$): 0.00, 0.10, 0.20 (3 levels)
 - Number of subjects: 20, 30, 50 (3 levels)
@@ -215,6 +215,8 @@ For the logit link with a $\mathrm{Logistic}(0, s)$ prior on $b_0$: $f(p) = f_{\
 
 ## Comparison to G-Priors {#sec-gprior-comparison}
 
+**[REVISION NOTE, not for submission: this section must be rewritten. (1) It treats the Logistic(0, 0.25) scale as an SD; the SD is 0.25 × π/√3 ≈ 0.45. (2) It describes the GLM g-prior with weights at the baseline probability, which matches Li & Clyde (2018) but not Sabanés Bové & Held (2011), whose prior evaluates the information at β = 0 and does not depend on the data (p. 392). See local/t4_literature_table.md.]**
+
 G-priors [@liang2008] specify that the regression coefficients follow a multivariate normal distribution whose covariance scales with the Fisher information matrix:
 
 $$\beta \sim \mathrm{Normal}\!\left(\beta_0,\; g \cdot I(\beta_0)^{-1}\right)$$
@@ -227,27 +229,27 @@ where $W(\beta_0) = \mathrm{diag}\!\left(p_i(\beta_0)\,[1 - p_i(\beta_0)]\right)
 
 1. *The prior scale is design-dependent.* For two datasets with the same number of subjects but different predictor values or designs, the g-prior implies different prior scales on the coefficient scale, and therefore different implied distributions on the probability scale. No universal recommendation like "Logistic(0, 0.75)" is possible.
 
-2. *The prior scale on the probability scale is not analytically tractable.* Because $W(\beta_0)$ depends on the predicted probabilities, the implied distribution of $g^{-1}(\beta)$ on the probability scale cannot be derived analytically. Prior predictive checking must be done numerically for each specific dataset, limiting the use of g-priors as a general diagnostic tool for prior plausibility.
+2. *The prior scale on the probability scale is not analytically tractable.* Because $W(\beta_0)$ depends on the predicted probabilities, the implied distribution of $g^{-1}(\beta)$ on the probability scale cannot be derived analytically. The implied prior must be checked numerically for each specific dataset, limiting the use of g-priors as a general diagnostic tool for prior plausibility.
 
 To illustrate the design dependence, consider a simple one-predictor binomial GLM with a single covariate $x$ (sum-to-zero coded, $\pm 1$). For $n$ participants split equally between two conditions:
 
 $$I_{b_1}(\beta_0) = n \cdot p_0(1-p_0)$$
 
-where $p_0 = g^{-1}(b_0)$ is the baseline probability. The g-prior for $b_1$ is then $b_1 \sim \mathrm{Normal}(0,\, [g \cdot n \cdot p_0(1-p_0)]^{-1})$. This implied scale on $b_1$ changes with every dataset: it decreases as $n$ grows (requiring ever-tighter priors as we collect more data), and varies with the baseline probability $p_0$ (being tightest near $p_0 = 0.5$ and becoming increasingly diffuse as $p_0$ approaches 0 or 1). In contrast, the matched prior Logistic(0, 0.75) has a fixed scale that does not depend on $n$, $p_0$, or the design.
+where $p_0 = g^{-1}(b_0)$ is the baseline probability. The g-prior for $b_1$ is then $b_1 \sim \mathrm{Normal}(0,\, [g \cdot n \cdot p_0(1-p_0)]^{-1})$. This implied scale on $b_1$ changes with every dataset: it decreases as $n$ grows (requiring ever-tighter priors as we collect more data), and varies with the baseline probability $p_0$ (being tightest near $p_0 = 0.5$ and becoming increasingly diffuse as $p_0$ approaches 0 or 1). In contrast, the link-consistent prior Logistic(0, 0.75) has a fixed scale that does not depend on $n$, $p_0$, or the design.
 
-The matched prior's design-independence makes it straightforward to reason about and communicate: a researcher can state "I used Logistic(0, 0.25)" and a reader immediately knows the implied prior predictive distribution on the probability scale, regardless of the specific dataset. G-prior scale recommendations, by contrast, are necessarily conditional on the dataset structure.
+The link-consistent prior's design-independence makes it straightforward to reason about and communicate: a researcher can state "I used Logistic(0, 0.25)" and a reader immediately knows the implied implied prior distribution on the probability scale, regardless of the specific dataset. G-prior scale recommendations, by contrast, are necessarily conditional on the dataset structure.
 
 In practice, g-priors are not readily available in `brms` or Stan, which limits their uptake in applied behavioral research.
 
 ### Design-Dependent Scales: A Numerical Illustration
 
-@tbl-gprior-scales illustrates the design dependence quantitatively. For the simple two-group design described above, a fixed-$g$ prior with $g = 1$ implies an effect prior SD of $\mathrm{SD}_g = 1 / \sqrt{n_{\mathrm{total}} \cdot p_0(1-p_0)}$. The *unit-information* choice corresponds to $g = n_{\mathrm{total}}$ rather than $g = 1$; it removes the dependence on sample size -- the implied SD becomes $1/\sqrt{p_0(1-p_0)}$ -- but retains the dependence on the baseline probability. @tbl-gprior-scales shows the implied SD for $g = 1$ across a range of sample sizes and baseline probabilities, alongside the matched prior's fixed SD of 0.25.
+@tbl-gprior-scales illustrates the design dependence quantitatively. For the simple two-group design described above, a fixed-$g$ prior with $g = 1$ implies an effect prior scale of $\mathrm{SD}_g = 1 / \sqrt{n_{\mathrm{total}} \cdot p_0(1-p_0)}$. The *unit-information* choice corresponds to $g = n_{\mathrm{total}}$ rather than $g = 1$; it removes the dependence on sample size -- the implied SD becomes $1/\sqrt{p_0(1-p_0)}$ -- but retains the dependence on the baseline probability. @tbl-gprior-scales shows the implied SD for $g = 1$ across a range of sample sizes and baseline probabilities, alongside the link-consistent prior's fixed SD of 0.25.
 
 ```{r}
 #| label: tbl-gprior-scales
 #| tbl-cap: "Implied SD of a fixed-$g$ g-prior ($g = 1$) for a balanced
 #|   two-group binomial GLM across combinations of sample size and baseline
-#|   probability. The matched Logistic(0, 0.25) prior always has SD = 0.25,
+#|   probability. The link-consistent Logistic(0, 0.25) prior always has SD = 0.25,
 #|   regardless of design. The g-prior SD varies substantially across these
 #|   scenarios: it shrinks as $n$ grows and is smallest near $p_0 = 0.50$.
 #|   The shrinkage with $n$ is specific to fixed $g$; the dependence on the
@@ -271,24 +273,24 @@ knitr::kable(
     "$n_{\\text{subjects}}$",
     "$p_0$",
     "G-prior SD ($g = 1$)",
-    "Matched Logistic SD"
+    "Link-consistent Logistic SD"
   ),
   align  = c("r", "r", "r", "r"),
   escape = FALSE
 )
 ```
 
-The fixed-$g$ prior SD ranges from `r min(gprior_table$sd_gprior)` to `r max(gprior_table$sd_gprior)` across these nine scenarios, spanning a threefold range. The g-prior is narrower than the matched prior (SD = 0.25) in larger-sample, central-probability conditions, but wider in smaller-sample or extreme-baseline ones. Because there is no universal relationship between the g-prior scale and the matched prior scale, no single g-prior recommendation can substitute for the matched-prior approach.
+The fixed-$g$ prior SD ranges from `r min(gprior_table$sd_gprior)` to `r max(gprior_table$sd_gprior)` across these nine scenarios, spanning a threefold range. The g-prior is narrower than the link-consistent prior (SD = 0.25) in larger-sample, central-probability conditions, but wider in smaller-sample or extreme-baseline ones. Because there is no universal relationship between the g-prior scale and the link-consistent prior scale, no single g-prior recommendation can substitute for the link-consistent prior approach.
 
-### Prior Predictive Implications of G-Priors
+### Implied Priors of G-Priors on the Probability Scale
 
-@fig-S3-gprior-pp shows the prior predictive distributions on the effect scale ($\delta p$) for the matched Logistic(0, 0.25) prior and the fixed-$g$ prior ($g = 1$) across three representative design scenarios. For the matched prior, the distribution is identical across scenarios by design: a researcher applying Logistic(0, 0.25) obtains the same prior predictive guarantees regardless of sample size or baseline. For the fixed-$g$ prior, the distribution shifts across scenarios: the prior concentrates more tightly on small effects in larger samples and spreads more broadly at extreme baselines.
+@fig-S3-gprior-pp shows the implied prior distributions on the effect scale ($\delta p$) for the link-consistent Logistic(0, 0.25) prior and the fixed-$g$ prior ($g = 1$) across three representative design scenarios. For the link-consistent prior, the distribution is identical across scenarios by design: a researcher applying Logistic(0, 0.25) obtains the same implied prior regardless of sample size or baseline. For the fixed-$g$ prior, the distribution shifts across scenarios: the prior concentrates more tightly on small effects in larger samples and spreads more broadly at extreme baselines.
 
 ```{r}
 #| label: fig-S3-gprior-pp
-#| fig-cap: "Prior predictive distributions of $\\delta p$ for the matched
+#| fig-cap: "Implied prior distributions of $\\delta p$ for the link-consistent
 #|   Logistic(0, 0.25) prior (dark) and a fixed-$g$ prior ($g = 1$,
-#|   light) across three design scenarios. The matched prior's distribution is
+#|   light) across three design scenarios. The link-consistent prior's distribution is
 #|   identical in all three panels by construction. The g-prior distribution
 #|   shifts across scenarios: it concentrates more tightly at larger $n$
 #|   ($n = 100$, centre panel) and spreads more broadly at an extreme baseline
@@ -314,7 +316,7 @@ gprior_scen$label <- paste0(
   "  (SD[g] = ", round(gprior_scen$sd_gprior, 2), ")"
 )
 
-# Matched prior draws (same for all scenarios)
+# Link-consistent prior draws (same for all scenarios)
 b0_base    <- rlogis(n_gpp, 0, 0.75)
 b1_matched <- rlogis(n_gpp, 0, 0.25)
 dp_matched <- plogis(b0_base + b1_matched) - plogis(b0_base - b1_matched)
@@ -327,7 +329,7 @@ gpp_rows <- lapply(seq_len(nrow(gprior_scen)), function(i) {
   dp_g <- plogis(b0 + b1_g) - plogis(b0 - b1_g)
   rbind(
     data.frame(delta_p = dp_matched, label = sc$label,
-               prior = "Matched Logistic(0, 0.25)",
+               prior = "Link-consistent Logistic(0, 0.25)",
                stringsAsFactors = FALSE),
     data.frame(delta_p = dp_g, label = sc$label,
                prior = paste0("G-prior (g = 1; SD = ",
@@ -338,7 +340,7 @@ gpp_rows <- lapply(seq_len(nrow(gprior_scen)), function(i) {
 gpp_data <- do.call(rbind, gpp_rows) |>
   mutate(
     prior = factor(prior, levels = c(
-      "Matched Logistic(0, 0.25)",
+      "Link-consistent Logistic(0, 0.25)",
       paste0("G-prior (g = 1; SD = ",
              round(gprior_scen$sd_gprior, 2), ")")
     ))
@@ -362,40 +364,40 @@ ggplot(gpp_data, aes(x = delta_p, colour = prior, fill = prior)) +
 
 ### Properties Against Formal Criteria {#sec-bayarri-desiderata}
 
-@bayarri2012 propose a set of criteria for evaluating objective priors used in Bayesian model comparison. The main paper summarizes which of these properties matched priors possess (see the Summary of Step 3 in the main text). Here we assess the properties in more detail and compare matched priors to g-priors for GLMs, distinguishing which properties are provable from which are demonstrated empirically.
+@bayarri2012 propose a set of criteria for evaluating objective priors used in Bayesian model comparison. The main paper summarizes which of these properties link-consistent priors possess (see the Summary of Step 3 in the main text). Here we assess the properties in more detail and compare link-consistent priors to g-priors for GLMs, distinguishing which properties are provable from which are demonstrated empirically.
 
-*Monotone evidence growth in effect size.* At a fixed sample size, the matched-prior Bayes factor increases monotonically with the true effect size, so larger effects yield stronger evidence for $H_1$ (see the Consistency Simulation above). Fixed-$g$ priors, by contrast, suffer from the *information paradox* described by @liang2008 for the Gaussian linear model: because the prior contracts as the information grows, the Bayes factor can remain bounded even as $R^2 \to 1$, a setting in which unbounded evidence would be attainable. Mixture-of-$g$ priors (e.g., the ZS-adapted prior of @liang2008) resolve this paradox, but in the context of GLMs their evaluation requires Laplace approximation [@liclyde2018], which introduces additional approximation error and is not accessible via standard software such as `brms`.
+*Monotone evidence growth in effect size.* At a fixed sample size, the Bayes factor under the link-consistent prior increases monotonically with the true effect size, so larger effects yield stronger evidence for $H_1$ (see the Consistency Simulation above). Fixed-$g$ priors, by contrast, suffer from the *information paradox* described by @liang2008 for the Gaussian linear model: because the prior contracts as the information grows, the Bayes factor can remain bounded even as $R^2 \to 1$, a setting in which unbounded evidence would be attainable. Mixture-of-$g$ priors (e.g., the ZS-adapted prior of @liang2008) resolve this paradox, but in the context of GLMs their evaluation requires Laplace approximation [@liclyde2018], which introduces additional approximation error and is not accessible via standard software such as `brms`.
 
-*Model selection consistency.* Highly diffuse priors exhibit Bartlett's paradox: as $g \to \infty$ (i.e., as the prior becomes arbitrarily diffuse), the Bayes factor collapses to favor $H_0$ regardless of the data. A fixed, *finite* $g$ avoids Bartlett's paradox, at the cost of the information paradox above. Matched priors with fixed, finite scale likewise avoid this problem; model selection consistency (the probability of correctly identifying the true model approaching 1 as $n \to \infty$) follows from standard Bayesian consistency results for proper priors with full support at the true parameter value. Mixture-of-$g$ priors also achieve model selection consistency under regularity conditions [@liang2008].
+*Model selection consistency.* Highly diffuse priors exhibit Bartlett's paradox: as $g \to \infty$ (i.e., as the prior becomes arbitrarily diffuse), the Bayes factor collapses to favor $H_0$ regardless of the data. A fixed, *finite* $g$ avoids Bartlett's paradox, at the cost of the information paradox above. Link-consistent priors with fixed, finite scale likewise avoid this problem; model selection consistency (the probability of correctly identifying the true model approaching 1 as $n \to \infty$) follows from standard Bayesian consistency results for proper priors with full support at the true parameter value. Mixture-of-$g$ priors also achieve model selection consistency under regularity conditions [@liang2008].
 
-*Invariance to group labeling.* @bayarri2012 discuss *measurement invariance* -- invariance to changes in the outcome's measurement units. Binomial GLMs have no unit-bearing outcome, so the closest analogue is invariance to arbitrary group labels. Under sum-to-zero $\pm 1$ contrast coding, the matched Logistic(0, 0.25) prior implies a symmetric prior predictive distribution for $\delta p$: reversing the sign of the predictor reverses the sign of $b_1$ but leaves $|\delta p|$ unchanged. The Bayes factor therefore does not depend on which group is arbitrarily labeled $+1$ or $-1$. G-prior scales are determined by the Fisher information matrix evaluated at a reference point $\beta_0$, which depends on the design structure; the resulting symmetry properties depend on the specific design.
+*Invariance to group labeling.* @bayarri2012 discuss *measurement invariance* -- invariance to changes in the outcome's measurement units. Binomial GLMs have no unit-bearing outcome, so the closest analogue is invariance to arbitrary group labels. Under sum-to-zero $\pm 1$ contrast coding, the link-consistent Logistic(0, 0.25) prior implies a symmetric implied prior distribution for $\delta p$: reversing the sign of the predictor reverses the sign of $b_1$ but leaves $|\delta p|$ unchanged. The Bayes factor therefore does not depend on which group is arbitrarily labeled $+1$ or $-1$. G-prior scales are determined by the Fisher information matrix evaluated at a reference point $\beta_0$, which depends on the design structure; the resulting symmetry properties depend on the specific design.
 
-*Interpretable prior predictive on the probability scale.* This property is related to, but weaker than, *predictive matching* in @bayarri2012, which concerns marginal predictive distributions at minimal sample sizes. In our workflow, the matched prior yields an analytically known prior predictive on the probability scale by construction: because the prior family mirrors the inverse link function (probability integral transform), the prior predictive distribution on the probability scale is exactly uniform at scale 1 and plausibly concentrated at scale 0.75. The prior predictive distributions implied by g-priors on the probability scale are not analytically tractable (see @tbl-gprior-scales and @fig-S3-gprior-pp) and must be numerically evaluated for each specific dataset, limiting their use as a diagnostic tool.
+*Interpretable implied prior on the probability scale.* This property is related to, but weaker than, *predictive matching* in @bayarri2012, which concerns marginal predictive distributions at minimal sample sizes. In our workflow, the link-consistent prior yields an analytically known implied prior on the probability scale by construction: because the prior family mirrors the inverse link function (probability integral transform), the implied prior distribution on the probability scale is exactly uniform at scale 1 and plausibly concentrated at scale 0.75. The implied prior distributions implied by g-priors on the probability scale are not analytically tractable (see @tbl-gprior-scales and @fig-S3-gprior-pp) and must be numerically evaluated for each specific dataset, limiting their use as a diagnostic tool.
 
 @tbl-bayarri-comparison summarizes the comparison.
 
-| Property | Matched prior | G-prior (fixed $g$) | Mixture-of-$g$ |
+| Property | Link-consistent prior | G-prior (fixed $g$) | Mixture-of-$g$ |
 |-----------|:-------------|:-------------------|:--------------|
 | Monotone evidence growth in effect size (fixed $n$) | Yes (empirical) | No (information paradox) | Yes |
 | Model selection consistency ($n \to \infty$) | Yes | Yes for finite $g$ (fails as $g \to \infty$; Bartlett's paradox) | Yes |
 | Invariance to group labeling | Yes (sum-to-zero coding) | Design-dependent | Design-dependent |
-| Interpretable prior predictive on probability scale | Yes (by construction via Step 2) | Not directly accessible | Not directly accessible |
+| Interpretable implied prior on probability scale | Yes (by construction via Step 2) | Not directly accessible | Not directly accessible |
 | Available in `brms`/Stan | Yes | No | No |
 
-: Comparison of matched priors, fixed-$g$ priors, and mixture-of-$g$ priors. Property list adapted from the criteria of @bayarri2012; the first row reports monotone growth of evidence with effect size, the property our simulations demonstrate. References: information paradox and mixture-of-$g$ [@liang2008]; GLM extension [@liclyde2018; @bove2011]. {#tbl-bayarri-comparison}
+: Comparison of link-consistent priors, fixed-$g$ priors, and mixture-of-$g$ priors. Property list adapted from the criteria of @bayarri2012; the first row reports monotone growth of evidence with effect size, the property our simulations demonstrate. References: information paradox and mixture-of-$g$ [@liang2008]; GLM extension [@liclyde2018; @bove2011]. {#tbl-bayarri-comparison}
 
 
 ## Full Bayes Factor Calibration Results {#sec-full-bf-results}
 
-The main paper reports BF calibration results for a representative subset ($n_{\text{subjects}} = 30$, 20 trials, true $b_1 \in \{0, 0.10, 0.20\}$). Here we report the full results for the matched Logistic(0, 0.25) effect prior across all 5 true effect sizes, 3 sample sizes, and 2 trial counts.
+The main paper reports BF calibration results for a representative subset ($n_{\text{subjects}} = 30$, 20 trials, true $b_1 \in \{0, 0.10, 0.20\}$). Here we report the full results for the link-consistent Logistic(0, 0.25) effect prior across all 5 true effect sizes, 3 sample sizes, and 2 trial counts.
 
-### Detection Rates for the Matched Prior
+### Detection Rates for the Link-Consistent Prior
 
-@tbl-bf-detection shows detection rates ($P(\mathrm{BF}_{10} > 3)$) for the matched Logistic(0, 0.25) prior with a matched Logistic(0, 0.75) intercept prior. Under the null ($b_1 = 0$), the rate of misleading evidence for $H_1$ ($P(\mathrm{BF}_{10} > 3)$ under the null) stays below 5% in all conditions. Detection rates increase with effect size and sample size as expected, and are substantially higher with 50 versus 20 trials per subject.
+@tbl-bf-detection shows detection rates ($P(\mathrm{BF}_{10} > 3)$) for the link-consistent Logistic(0, 0.25) prior with a link-consistent Logistic(0, 0.75) intercept prior. Under the null ($b_1 = 0$), the rate of misleading evidence for $H_1$ ($P(\mathrm{BF}_{10} > 3)$ under the null) stays below 5% in all conditions. Detection rates increase with effect size and sample size as expected, and are substantially higher with 50 versus 20 trials per subject.
 
 ```{r}
 #| label: tbl-bf-detection
-#| tbl-cap: "Detection rates ($P(\\mathrm{BF}_{10} > 3)$) for the matched
+#| tbl-cap: "Detection rates ($P(\\mathrm{BF}_{10} > 3)$) for the link-consistent
 #|   Logistic(0, 0.25) effect prior across all simulation conditions. Columns
 #|   show results for each combination of sample size ($n$) and trials per
 #|   subject ($T$). Rows correspond to true effect sizes on the logit scale.
@@ -422,12 +424,12 @@ knitr::kable(
 
 ### BF Distributions Across All Conditions
 
-@fig-S4-bf-full shows the full pattern of Bayes factor evidence across all conditions as a heatmap of median $\log_{10}(\mathrm{BF}_{10})$. Each cell shows the central tendency of the BF distribution for one simulation condition, with positive values indicating evidence for $H_1$ (an effect exists) and negative values indicating evidence for $H_0$ (no effect). The matched prior yields calibrated evidence: under the null, median BFs are slightly below 1, reflecting appropriate support for $H_0$ with moderate-to-large samples.
+@fig-S4-bf-full shows the full pattern of Bayes factor evidence across all conditions as a heatmap of median $\log_{10}(\mathrm{BF}_{10})$. Each cell shows the central tendency of the BF distribution for one simulation condition, with positive values indicating evidence for $H_1$ (an effect exists) and negative values indicating evidence for $H_0$ (no effect). The link-consistent prior yields calibrated evidence: under the null, median BFs are slightly below 1, reflecting appropriate support for $H_0$ with moderate-to-large samples.
 
 ```{r}
 #| label: fig-S4-bf-full
 #| fig-cap: "Median $\\log_{10}(\\mathrm{BF}_{10})$ across all simulation
-#|   conditions for the matched Logistic(0, 0.25) effect prior with matched
+#|   conditions for the link-consistent Logistic(0, 0.25) effect prior with link-consistent
 #|   Logistic(0, 0.75) intercept prior. Rows correspond to true effect sizes;
 #|   columns to sample sizes. The two panels show results for 20 (left) and 50
 #|   (right) trials per subject. Positive values (yellow) indicate evidence for
@@ -471,12 +473,12 @@ ggplot(bf_heatmap_data,
 
 ## JZS/Cauchy Comparison: Full Results {#sec-jzs-full-results}
 
-@tbl-S-jzs-rates gives full detection-rate results for the JZS/Cauchy comparison, supplementing the ROC and AUC analyses in the main paper. It shows $P(\mathrm{BF}_{10} > 3)$ (detection rate) and $P(\mathrm{BF}_{01} > 3)$ (false-null support) for both the matched Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
+@tbl-S-jzs-rates gives full detection-rate results for the JZS/Cauchy comparison, supplementing the ROC and AUC analyses in the main paper. It shows $P(\mathrm{BF}_{10} > 3)$ (detection rate) and $P(\mathrm{BF}_{01} > 3)$ (false-null support) for both the link-consistent Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
 
 ```{r}
 #| label: tbl-S-jzs-rates
 #| tbl-cap: "Detection rates ($P(\\mathrm{BF}_{10} > 3)$) and false-null support
-#|   rates ($P(\\mathrm{BF}_{01} > 3)$) for the matched Logistic(0, 0.25) and
+#|   rates ($P(\\mathrm{BF}_{01} > 3)$) for the link-consistent Logistic(0, 0.25) and
 #|   JZS Cauchy(0, $\\sqrt{2}/2$) priors across all simulation conditions.
 #|   Under the true null ($b_1 = 0$), $P(\\mathrm{BF}_{01} > 3)$ reflects correct
 #|   support for $H_0$; under nonzero effects, it reflects false support for $H_0$.
@@ -490,7 +492,7 @@ jzs_tbl <- readRDS(here("output", "bf_calibration_jzs_rates_table.rds")) |>
          (prior == "cauchy"   & sd_b1 > 0.7)) |>
   mutate(
     prior_label = if_else(prior == "logistic",
-                          "Matched Logistic(0, 0.25)",
+                          "Link-consistent Logistic(0, 0.25)",
                           "JZS Cauchy(0, sqrt(2)/2)"),
     P_BF10_gt3 = round(P_BF10_gt3, 2),
     P_BF01_gt3 = round(P_BF01_gt3, 2),
@@ -515,7 +517,7 @@ knitr::kable(
 )
 ```
 
-@fig-S-jzs-logbf shows the full distribution of $\log_{10}(\mathrm{BF}_{10})$ for all four prior combinations across the design space, underlying the ROC analysis in the main paper. At matched scales, Logistic and Cauchy produce nearly identical distributions -- within each ridge, solid and dashed lines virtually coincide. The scale difference is the dominant factor: under the true null ($b_1 = 0$), scale 0.707 shifts the distribution substantially leftward relative to the $\pm\log_{10}(3)$ decision boundaries, reducing BF mass in the evidence-for-$H_1$ region. Prior scale moves BF mass relative to the decision thresholds; prior family does not.
+@fig-S-jzs-logbf shows the full distribution of $\log_{10}(\mathrm{BF}_{10})$ for all four prior combinations across the design space, underlying the ROC analysis in the main paper. At equal nominal scales, Logistic and Cauchy produce nearly identical distributions -- within each ridge, solid and dashed lines virtually coincide. The scale difference is the dominant factor: under the true null ($b_1 = 0$), scale 0.707 shifts the distribution substantially leftward relative to the $\pm\log_{10}(3)$ decision boundaries, reducing BF mass in the evidence-for-$H_1$ region. Prior scale moves BF mass relative to the decision thresholds; prior family does not.
 
 ```{r}
 #| label: fig-S-jzs-logbf
@@ -524,7 +526,7 @@ knitr::kable(
 #|   ($b_1 = 0$), a small effect ($b_1 = 0.10$), and a medium effect ($b_1 = 0.20$).
 #|   Rows show sample sizes ($N = 20, 30, 50$); columns show trial counts ($T = 20, 50$).
 #|   Within each ridge, solid (Logistic) and dashed (Cauchy) lines nearly coincide
-#|   at matched scales. Scale 0.707 shifts both distributions leftward relative to
+#|   at equal nominal scales. Scale 0.707 shifts both distributions leftward relative to
 #|   the $\\pm\\log_{10}(3)$ decision thresholds (vertical dashed lines), reducing
 #|   BF mass in the evidence-for-$H_1$ region."
 #| out-width: "100%"
@@ -536,7 +538,7 @@ knitr::include_graphics(here("figures", "logbf_distributions.png"))
 
 ```{r}
 #| label: fig-S-jzs-heatmap
-#| fig-cap: "Median $\\log_{10}(\\mathrm{BF}_{10})$ for the matched Logistic(0, 0.25)
+#| fig-cap: "Median $\\log_{10}(\\mathrm{BF}_{10})$ for the link-consistent Logistic(0, 0.25)
 #|   (left columns) and JZS Cauchy(0, $\\sqrt{2}/2$) (right columns) priors across
 #|   all simulation conditions. Rows: true effect size. Columns: sample size and
 #|   prior. Panels: trials per subject. Positive values (yellow) indicate evidence
@@ -550,7 +552,7 @@ jzs_continuous <- readRDS(here("output", "bf_calibration_jzs_continuous.rds")) |
          (prior == "cauchy"   & sd_b1 > 0.7)) |>
   mutate(
     prior_label    = case_when(
-      prior == "logistic" ~ "Matched\nLogistic(0, 0.25)",
+      prior == "logistic" ~ "Link-consistent\nLogistic(0, 0.25)",
       prior == "cauchy"   ~ "JZS\nCauchy(0, sqrt(2)/2)"
     ),
     n_trials_label = paste0("Trials per subject: ", n_trials),
@@ -587,11 +589,11 @@ ggplot(jzs_continuous,
 
 ```{r}
 #| label: fig-S1-floor-ceiling
-#| fig-cap: "Proportion of prior predictive mass in the floor/ceiling region
-#|   (p < 0.05 or p > 0.95) as a function of intercept prior SD and family.
-#|   The matched prior at $\\mathrm{sd}_{b_0} = 1.0$ places exactly 10% in this region
-#|   (2 x 0.05 = 0.10), confirming the uniform result. At $\\mathrm{sd}_{b_0} = 0.75$,
-#|   floor/ceiling mass drops below 10% for both matched priors."
+#| fig-cap: "Proportion of prior mass in the floor/ceiling region
+#|   (p < 0.05 or p > 0.95) as a function of intercept prior scale and family.
+#|   The link-consistent prior at $s_{b_0} = 1.0$ places exactly 10% in this region
+#|   (2 x 0.05 = 0.10), confirming the uniform result. At $s_{b_0} = 0.75$,
+#|   floor/ceiling mass drops below 10% for both link-consistent priors."
 #| fig-height: 6
 #| fig-width: 10
 
@@ -601,7 +603,7 @@ plot_floor_ceiling_heatmap(summaries_pp)
 ```{r}
 #| label: fig-S2-re-delta-p
 #| fig-cap: "Effect size heterogeneity by hyperprior family and scale for the
-#|   intercept + slope model. At matched scale, all families produce similar
+#|   intercept + slope model. At equal mean, all families produce similar
 #|   effect heterogeneity. Dotted lines mark +/-0.10, +/-0.20, +/-0.30."
 #| fig-height: 8
 #| fig-width: 12
