@@ -153,8 +153,10 @@ Even a design-independent g-prior for GLMs would not tell us what the prior impl
 
 [^gprior]: g-priors are not readily available in `brms` [@burkner2017; @burkner2018] or Stan, which limits their practical uptake in psychological research.
 
+::: {#tbl-prior-literature apa-note="For each prior, the specification and the default values are those of the original source; page numbers refer to the equation or recommendation cited. $N$: number of observations; $c$: link-specific constant; $W$: prior weights; $J_n(\hat\beta)$: observed information at the maximum-likelihood estimate."}
+
 | Prior | Placed on | Specification | Default values | Source |
-|----------|----------|----------------|----------|----------|
+|-------------|---------------|--------------------------------------|---------------|-------------|
 | Zellner--Siow | Coefficients $\beta$ of the Gaussian linear model | $\beta \mid g, \sigma^2 \sim \mathrm{Normal}(0,\, g\sigma^2(X'X)^{-1})$, $g \sim \mathrm{Inv\text{-}Gamma}(\tfrac{1}{2}, \tfrac{N}{2})$ | None (no free hyperparameter) | @liang2008 [pp. 412, 414] |
 | JZS prior for ANOVA | Standardized effects $\theta = \beta/\sigma$ | $\theta \mid g \sim \mathrm{Normal}(0,\, gI)$, $g \sim \mathrm{Inv\text{-}}\chi^2(1)$; $\pi(\mu, \sigma^2) \propto 1/\sigma^2$ | Cauchy scale 1 | @rouder2012 [p. 362] |
 | Weakly informative Cauchy | Logistic-regression coefficients after standardizing the inputs | Independent $\mathrm{Cauchy}(0, s)$ | $s = 2.5$ (coefficients), $s = 10$ (intercept) | @gelman2008 |
@@ -162,9 +164,11 @@ Even a design-independent g-prior for GLMs would not tell us what the prior impl
 | Generalized g-prior | GLM coefficients $\beta$ | $\beta \mid g \sim \mathrm{Normal}(0,\, g\,c\,(X'WX)^{-1})$, prior on $g$ | Hyperpriors compared, e.g. Zellner--Siow, hyper-g/n | @bove2011 [pp. 389--390] |
 | Mixture of g-priors for GLMs | GLM coefficients $\beta$ | $\beta \mid g \sim \mathrm{Normal}(0,\, g\,J_n(\hat\beta)^{-1})$, prior on $g$ | Benchmark and hyper-g/n priors | @liclyde2018 |
 | Conditional means prior | Success probabilities at chosen design points | $\tilde p_i \sim \mathrm{Beta}(a_{1i}, a_{2i})$, inducing a prior on $\beta$ | Elicited, no default | @bedrick1996 [pp. 1450--1452] |
-| Link-consistent prior (this paper) | Intercept $b_0$ and effect $b_1$ on the link scale | $b_0 \sim F(0, s_{b_0})$, $b_1 \sim F(0, s_{b_1})$, $F$ the distribution whose CDF is the inverse link | See @sec-recommendations | |
+| Link-consistent prior (this paper) | Intercept $b_0$ and effect $b_1$ on the link scale | $b_0 \sim F(0, s_{b_0})$, $b_1 \sim F(0, s_{b_1})$, $F$ the distribution whose CDF is the inverse link | See Recommendations section | |
 
-: Prior specifications discussed in the Related Work section. For each prior, the specification and the default values are those of the original source; page numbers refer to the equation or recommendation cited. $N$: number of observations; $c$: link-specific constant; $W$: prior weights; $J_n(\hat\beta)$: observed information at the maximum-likelihood estimate. {#tbl-prior-literature}
+Prior specifications discussed in the Related Work section.
+
+:::
 
 ### Conditional Mean Priors and Prior Elicitation
 
