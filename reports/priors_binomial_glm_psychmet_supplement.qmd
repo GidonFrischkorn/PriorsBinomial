@@ -82,6 +82,11 @@ logbf_fig_available <- file.exists(here("figures", "logbf_distributions.png"))
 consistency_available <- file.exists(here("output", "bf_calibration_consistency_summaries.rds"))
 if (consistency_available) {
   consistency_summaries <- readRDS(here("output", "bf_calibration_consistency_summaries.rds"))
+  cons_null200 <- consistency_summaries |>
+    dplyr::filter(dist_b1 == "logistic", true_b1 == 0, n_subjects == 200)
+  stopifnot(nrow(cons_null200) == 1)
+  cons_q25_null200 <- cons_null200$q25_log10_BF10
+  cons_q75_null200 <- cons_null200$q75_log10_BF10
 }
 
 ```
@@ -125,7 +130,7 @@ A separate random-effects simulation held fixed-effects priors at the recommende
 
 ### Consistency Simulation
 
-To verify the consistency behavior of Bayes factors under link-consistent priors empirically, we ran a focused simulation with the link-consistent Logistic(0, 0.25) prior. We generated data under a between-subjects design: $N = 2 \times n_{\mathrm{subjects}}$ participants each contributing one binomial count from $n_{\mathrm{trials}}$ trials in a single condition ($x \in \{+1, -1\}$, sum-to-zero coded). We included participant-level random intercepts in both data generation and model fitting. The consistency properties examined here depend on the prior density at zero relative to posterior concentration around the true effect; they do not depend on the between- versus within-subjects structure of the design, and the results generalize to within-subjects (repeated-measures) hierarchical models.
+To verify the consistency behavior of Bayes factors under link-consistent priors empirically, we ran a focused simulation with the link-consistent Logistic(0, 0.25) prior. We generated data under a between-subjects design: $N = 2 \times n_{\mathrm{subjects}}$ participants each contributing one binomial count from $n_{\mathrm{trials}}$ trials in a single condition ($x \in \{+1, -1\}$, sum-to-zero coded). We included participant-level random intercepts in both data generation and model fitting.
 
 - Intercept prior family: Logistic (link-consistent; $s_{b_0} = 0.75$)
 - Effect prior family: Logistic (link-consistent; $s_{b_1} = 0.25$)
@@ -135,7 +140,7 @@ To verify the consistency behavior of Bayes factors under link-consistent priors
 
 This yields $6 \times 5 = 30$ conditions with 50 replications each.
 
-@fig-S-consistency shows the median $\log_{10}(\mathrm{BF}_{10})$ as a function of the true effect and the number of subjects. Three properties are visible, and we label them separately. *Monotone evidence growth in effect size*: at any fixed sample size, evidence grows monotonically with the true effect size, so that larger effects produce larger Bayes factors. (Note that this is weaker than strict information consistency in the sense of @bayarri2012, which requires the BF to diverge for extreme data at fixed $n$; no proper prior attains that property in binomial models, because the likelihood is bounded for finite data.) *Sample-size (Lindley) consistency*: for any fixed non-null effect, evidence for $H_1$ grows with the number of subjects. *Evidence accumulation under the null*: under the true null ($b_1 = 0$), the Bayes factor increasingly favors $H_0$ as the sample grows. The link-consistent Logistic(0, 0.25) prior thus accumulates evidence in the correct direction along both axes.
+@fig-S-consistency shows the median $\log_{10}(\mathrm{BF}_{10})$ as a function of the true effect and the number of subjects. At each sample size, the median evidence grew with the true effect size. For true effects of 0.10 and larger, median evidence for $H_1$ grew with the number of subjects. For a true effect of 0.05, median evidence still favored $H_0$ up to 100 subjects per condition; such a small effect requires larger samples to be detected. Under the null, median evidence for $H_0$ grew from 20 to 100 subjects per condition. At 200 subjects per condition, the Bayes factors became very variable (under the null, the interquartile range of $\log_{10}(\mathrm{BF}_{10})$ spanned `r sprintf("%.1f", cons_q25_null200)` to `r sprintf("%.1f", cons_q75_null200)`). These Bayes factors were estimated with a kernel density estimate of the posterior at zero, which is imprecise for large Bayes factors, so we do not interpret the cells with 200 subjects. These results describe the simulated design and do not establish consistency in general.
 
 ```{r}
 #| label: fig-S-consistency
@@ -213,178 +218,81 @@ This yields $2 \times 3 \times 3 \times 2 = 36$ conditions with 300 replications
 For the logit link with a $\mathrm{Logistic}(0, s)$ prior on $b_0$: $f(p) = f_{\mathrm{Logis}}(\mathrm{logit}(p), 0, s) / [p(1-p)]$. At $s = 1$, the logistic density and the Jacobian $p(1-p)$ cancel, giving $f(p) = 1$. For the probit link with a $\mathrm{Normal}(0, \sigma)$ prior: $f(p) = \phi(\mathrm{probit}(p)/\sigma) / [\sigma \cdot \phi(\mathrm{probit}(p))]$, where $\phi$ denotes the standard normal density. At $\sigma = 1$, the normal densities cancel, again yielding $f(p) = 1$.
 
 
-## Comparison to G-Priors {#sec-gprior-comparison}
+## Comparison to G-Priors for GLMs {#sec-gprior-comparison}
 
-**[REVISION NOTE, not for submission: this section must be rewritten. (1) It treats the Logistic(0, 0.25) scale as an SD; the SD is 0.25 × π/√3 ≈ 0.45. (2) It describes the GLM g-prior with weights at the baseline probability, which matches Li & Clyde (2018) but not Sabanés Bové & Held (2011), whose prior evaluates the information at β = 0 and does not depend on the data (p. 392). See local/t4_literature_table.md.]**
+The main text describes two extensions of the g-prior to GLMs (see Related Work). Here we work out what they imply in the design of the running example: two conditions coded $x_i = \pm 1$, the logit link, and $N$ Bernoulli observations split equally between the conditions. Both priors were formulated for GLMs without random effects, so we consider the model without random effects. Throughout, the comparison prior is $\mathrm{Logistic}(0, 0.25)$, whose standard deviation is $0.25 \cdot \pi/\sqrt{3} =$ `r sprintf("%.2f", 0.25 * pi / sqrt(3))`.
 
-G-priors [@liang2008] specify that the regression coefficients follow a multivariate normal distribution whose covariance scales with the Fisher information matrix:
+*Generalized g-prior* [@bove2011]. The prior is $\beta \mid g \sim \mathrm{Normal}\big(0,\, g\,c\,(X'WX)^{-1}\big)$, with prior weights $W$ (here the identity) and $c = 4$ for the logit link [@bove2011, Eq. 6 and Table 1, pp. 389--390]. For the effect column, $X'X = N$, so $b_1 \mid g \sim \mathrm{Normal}(0,\, 4g/N)$. With a fixed $g$, the prior narrows as $N$ grows; the unit-information choice $g = N$ gives $\mathrm{Normal}(0, 2)$. With the Zellner--Siow hyperprior $g \sim \mathrm{Inverse\text{-}Gamma}(1/2, N/2)$, $g/N$ follows an $\mathrm{Inverse\text{-}Gamma}(1/2, 1/2)$ distribution for every $N$, and the marginal prior on $b_1$ is $\mathrm{Cauchy}(0, 2)$. We confirmed this numerically for $N = 40$, 400 and 4,000 ($10^6$ draws each). In this design, the generalized g-prior with the Zellner--Siow hyperprior therefore does not depend on the sample size. Its scale is eight times the scale of $\mathrm{Logistic}(0, 0.25)$. In other designs, the prior changes with $X'WX$, for example with unequal group sizes or more factor levels.
 
-$$\beta \sim \mathrm{Normal}\!\left(\beta_0,\; g \cdot I(\beta_0)^{-1}\right)$$
-
-where $g > 0$ is a scalar hyperparameter (or mixture weight) and $I(\beta_0)$ is the Fisher information matrix evaluated at a reference point $\beta_0$. For Gaussian linear models, $I(\beta_0)^{-1} = \sigma^2 (X'X)^{-1}$, giving a prior covariance that is proportional to the ordinary least-squares covariance matrix. @bove2011 and @liclyde2018 extend this framework to GLMs by replacing $(X'X)$ with the GLM Fisher information, which for binomial models is the IRLS weight matrix (@bove2011 use the *expected* information evaluated at a reference prediction, $\hat{\beta}_0 = 0$; @liclyde2018 use the *observed* information at the maximum likelihood estimate):
-
-$$I(\beta_0) = X' W(\beta_0) X$$
-
-where $W(\beta_0) = \mathrm{diag}\!\left(p_i(\beta_0)\,[1 - p_i(\beta_0)]\right)$ and $p_i(\beta_0) = g^{-1}(x_i' \beta_0)$ are the predicted probabilities under the reference point $\beta_0$. The g-prior covariance therefore depends on the design matrix $X$ and the weight matrix $W$, evaluated at predicted probabilities that vary with $\beta_0$, $X$, and the link function. Two consequences follow:
-
-1. *The prior scale is design-dependent.* For two datasets with the same number of subjects but different predictor values or designs, the g-prior implies different prior scales on the coefficient scale, and therefore different implied distributions on the probability scale. No universal recommendation like "Logistic(0, 0.75)" is possible.
-
-2. *The prior scale on the probability scale is not analytically tractable.* Because $W(\beta_0)$ depends on the predicted probabilities, the implied distribution of $g^{-1}(\beta)$ on the probability scale cannot be derived analytically. The implied prior must be checked numerically for each specific dataset, limiting the use of g-priors as a general diagnostic tool for prior plausibility.
-
-To illustrate the design dependence, consider a simple one-predictor binomial GLM with a single covariate $x$ (sum-to-zero coded, $\pm 1$). For $n$ participants split equally between two conditions:
-
-$$I_{b_1}(\beta_0) = n \cdot p_0(1-p_0)$$
-
-where $p_0 = g^{-1}(b_0)$ is the baseline probability. The g-prior for $b_1$ is then $b_1 \sim \mathrm{Normal}(0,\, [g \cdot n \cdot p_0(1-p_0)]^{-1})$. This implied scale on $b_1$ changes with every dataset: it decreases as $n$ grows (requiring ever-tighter priors as we collect more data), and varies with the baseline probability $p_0$ (being tightest near $p_0 = 0.5$ and becoming increasingly diffuse as $p_0$ approaches 0 or 1). In contrast, the link-consistent prior Logistic(0, 0.75) has a fixed scale that does not depend on $n$, $p_0$, or the design.
-
-The link-consistent prior's design-independence makes it straightforward to reason about and communicate: a researcher can state "I used Logistic(0, 0.25)" and a reader immediately knows the implied implied prior distribution on the probability scale, regardless of the specific dataset. G-prior scale recommendations, by contrast, are necessarily conditional on the dataset structure.
-
-In practice, g-priors are not readily available in `brms` or Stan, which limits their uptake in applied behavioral research.
-
-### Design-Dependent Scales: A Numerical Illustration
-
-@tbl-gprior-scales illustrates the design dependence quantitatively. For the simple two-group design described above, a fixed-$g$ prior with $g = 1$ implies an effect prior scale of $\mathrm{SD}_g = 1 / \sqrt{n_{\mathrm{total}} \cdot p_0(1-p_0)}$. The *unit-information* choice corresponds to $g = n_{\mathrm{total}}$ rather than $g = 1$; it removes the dependence on sample size -- the implied SD becomes $1/\sqrt{p_0(1-p_0)}$ -- but retains the dependence on the baseline probability. @tbl-gprior-scales shows the implied SD for $g = 1$ across a range of sample sizes and baseline probabilities, alongside the link-consistent prior's fixed SD of 0.25.
+*Mixtures of g-priors with observed information* [@liclyde2018]. The prior is $\beta \mid g \sim \mathrm{Normal}\big(0,\, g\,J_n(\hat\beta)^{-1}\big)$, where $J_n(\hat\beta)$ is the observed information at the maximum-likelihood estimate. If both conditions have the observed success rate $\hat p$, the observed information for $b_1$ is $N \hat p (1 - \hat p)$, which we confirmed against the estimated variance of a logistic regression fit. For a given $g$, the prior standard deviation of $b_1$ is therefore proportional to $1/\sqrt{\hat p(1-\hat p)}$: it is `r sprintf("%.2f", sqrt(0.25 / (0.9 * 0.1)))` times larger at $\hat p = 0.9$ than at $\hat p = 0.5$. The prior depends on the observed accuracy.
 
 ```{r}
-#| label: tbl-gprior-scales
-#| tbl-cap: "Implied SD of a fixed-$g$ g-prior ($g = 1$) for a balanced
-#|   two-group binomial GLM across combinations of sample size and baseline
-#|   probability. The link-consistent Logistic(0, 0.25) prior always has SD = 0.25,
-#|   regardless of design. The g-prior SD varies substantially across these
-#|   scenarios: it shrinks as $n$ grows and is smallest near $p_0 = 0.50$.
-#|   The shrinkage with $n$ is specific to fixed $g$; the dependence on the
-#|   baseline probability $p_0(1-p_0)$ persists for any choice of $g$,
-#|   including the unit-information choice $g = n$."
+#| label: tbl-gprior-implied
+#| tbl-cap: "Implied priors on the probability difference $\\delta p$ at three
+#|   baseline probabilities $p_0$ (logit link, two conditions coded $\\pm 1$).
+#|   Generalized g-prior: @bove2011 with the Zellner--Siow hyperprior, which
+#|   reduces to $\\mathrm{Cauchy}(0, 2)$ in this design. Observed-information
+#|   g-prior: @liclyde2018 with the unit-information choice $g = N$ and the observed
+#|   success rate equal to $p_0$, which gives $\\mathrm{Normal}(0, 1/\\sqrt{p_0(1-p_0)})$.
+#|   Values are exact transforms of the prior on $b_1$."
 
-gprior_table <- expand.grid(
-  n_subjects = c(30, 60, 100),
-  p0         = c(0.30, 0.50, 0.70)
-) |>
+gp_priors <- tibble::tribble(
+  ~prior,                                    ~family,    ~scale_fun,
+  "Link-consistent Logistic(0, 0.25)",       "logistic", function(p0) 0.25,
+  "Generalized g-prior, Zellner-Siow",       "cauchy",   function(p0) 2,
+  "Observed-information g-prior, g = N",     "normal",   function(p0) 1 / sqrt(p0 * (1 - p0))
+)
+gp_tab <- tidyr::expand_grid(i = seq_len(nrow(gp_priors)), p0 = c(0.5, 0.7, 0.9)) |>
+  rowwise() |>
   mutate(
-    n_total     = 2 * n_subjects,
-    sd_gprior   = round(1 / sqrt(n_total * p0 * (1 - p0)), 3),
-    sd_matched  = 0.25
+    Prior   = gp_priors$prior[i],
+    s       = gp_priors$scale_fun[[i]](p0),
+    q90     = q_abs_delta_p(0.9, eta0 = qlogis(p0), link = "logit",
+                            family = gp_priors$family[i], scale = s),
+    p_gt_03 = 1 - p_abs_delta_p(0.3, eta0 = qlogis(p0), link = "logit",
+                                family = gp_priors$family[i], scale = s)
   ) |>
-  select(n_subjects, p0, sd_gprior, sd_matched)
+  ungroup()
 
-knitr::kable(
-  gprior_table,
-  col.names = c(
-    "$n_{\\text{subjects}}$",
-    "$p_0$",
-    "G-prior SD ($g = 1$)",
-    "Link-consistent Logistic SD"
-  ),
-  align  = c("r", "r", "r", "r"),
-  escape = FALSE
-)
+gp_tab |>
+  transmute(Prior, p0 = sprintf("%.1f", p0),
+            s = sprintf("%.2f", s),
+            q90 = sprintf("%.2f", q90),
+            p_gt_03 = sprintf("%.2f", p_gt_03)) |>
+  knitr::kable(align = "lrrrr", escape = FALSE,
+               col.names = c("Prior", "$p_0$", "Scale of $b_1$ prior",
+                             "90th percentile of $|\\delta p|$",
+                             "$P(|\\delta p| > 0.30)$"))
 ```
 
-The fixed-$g$ prior SD ranges from `r min(gprior_table$sd_gprior)` to `r max(gprior_table$sd_gprior)` across these nine scenarios, spanning a threefold range. The g-prior is narrower than the link-consistent prior (SD = 0.25) in larger-sample, central-probability conditions, but wider in smaller-sample or extreme-baseline ones. Because there is no universal relationship between the g-prior scale and the link-consistent prior scale, no single g-prior recommendation can substitute for the link-consistent prior approach.
-
-### Implied Priors of G-Priors on the Probability Scale
-
-@fig-S3-gprior-pp shows the implied prior distributions on the effect scale ($\delta p$) for the link-consistent Logistic(0, 0.25) prior and the fixed-$g$ prior ($g = 1$) across three representative design scenarios. For the link-consistent prior, the distribution is identical across scenarios by design: a researcher applying Logistic(0, 0.25) obtains the same implied prior regardless of sample size or baseline. For the fixed-$g$ prior, the distribution shifts across scenarios: the prior concentrates more tightly on small effects in larger samples and spreads more broadly at extreme baselines.
-
-```{r}
-#| label: fig-S3-gprior-pp
-#| fig-cap: "Implied prior distributions of $\\delta p$ for the link-consistent
-#|   Logistic(0, 0.25) prior (dark) and a fixed-$g$ prior ($g = 1$,
-#|   light) across three design scenarios. The link-consistent prior's distribution is
-#|   identical in all three panels by construction. The g-prior distribution
-#|   shifts across scenarios: it concentrates more tightly at larger $n$
-#|   ($n = 100$, centre panel) and spreads more broadly at an extreme baseline
-#|   probability ($p_0 = 0.30$, right panel). Dotted lines mark
-#|   $|\\delta p| = 0.10$ and $|\\delta p| = 0.20$."
-#| fig-height: 4
-#| fig-width: 11
-
-set.seed(2024)
-n_gpp <- 30000
-
-# Design scenarios: n_subjects, p0 → g-prior SD
-gprior_scen <- data.frame(
-  n_subjects = c(30, 100, 30),
-  p0         = c(0.50, 0.50, 0.30),
-  stringsAsFactors = FALSE
-)
-gprior_scen$n_total   <- 2 * gprior_scen$n_subjects
-gprior_scen$sd_gprior <- 1 / sqrt(gprior_scen$n_total *
-                                     gprior_scen$p0 * (1 - gprior_scen$p0))
-gprior_scen$label <- paste0(
-  "n = ", gprior_scen$n_subjects, ", p0 = ", gprior_scen$p0,
-  "  (SD[g] = ", round(gprior_scen$sd_gprior, 2), ")"
-)
-
-# Link-consistent prior draws (same for all scenarios)
-b0_base    <- rlogis(n_gpp, 0, 0.75)
-b1_matched <- rlogis(n_gpp, 0, 0.25)
-dp_matched <- plogis(b0_base + b1_matched) - plogis(b0_base - b1_matched)
-
-# Build combined data frame
-gpp_rows <- lapply(seq_len(nrow(gprior_scen)), function(i) {
-  sc <- gprior_scen[i, ]
-  b0 <- rlogis(n_gpp, 0, 0.75)
-  b1_g <- rnorm(n_gpp, 0, sc$sd_gprior)
-  dp_g <- plogis(b0 + b1_g) - plogis(b0 - b1_g)
-  rbind(
-    data.frame(delta_p = dp_matched, label = sc$label,
-               prior = "Link-consistent Logistic(0, 0.25)",
-               stringsAsFactors = FALSE),
-    data.frame(delta_p = dp_g, label = sc$label,
-               prior = paste0("G-prior (g = 1; SD = ",
-                              round(sc$sd_gprior, 2), ")"),
-               stringsAsFactors = FALSE)
-  )
-})
-gpp_data <- do.call(rbind, gpp_rows) |>
-  mutate(
-    prior = factor(prior, levels = c(
-      "Link-consistent Logistic(0, 0.25)",
-      paste0("G-prior (g = 1; SD = ",
-             round(gprior_scen$sd_gprior, 2), ")")
-    ))
-  )
-
-ggplot(gpp_data, aes(x = delta_p, colour = prior, fill = prior)) +
-  geom_density(alpha = 0.25, linewidth = 0.8) +
-  geom_vline(xintercept = c(-0.20, -0.10, 0.10, 0.20),
-             linetype = "dotted", linewidth = 0.4, colour = "grey40") +
-  geom_vline(xintercept = 0, linewidth = 0.5, colour = "grey20") +
-  facet_wrap(~ label, nrow = 1) +
-  scale_x_continuous(expression(delta * italic(p)),
-                     limits = c(-1, 1),
-                     breaks = seq(-1, 1, 0.25)) +
-  scale_fill_viridis_d("Prior", option = "D", end = 0.85) +
-  scale_colour_viridis_d("Prior", option = "D", end = 0.85) +
-  prior_theme() +
-  theme(legend.position = "bottom",
-        legend.text = element_text(size = 9))
-```
+@tbl-gprior-implied shows what these priors imply on the probability scale. Both g-priors place most of their mass on very large probability differences in this design. The link-consistent prior and the g-priors thus differ less in how they depend on the design than in their width: on the probability scale, the g-priors set a much stricter criterion for evidence in favor of an effect (see the criterion interpretation in Step 3 of the main text). In practice, g-priors are not readily available in `brms` or Stan, which limits their uptake in applied behavioral research.
 
 ### Properties Against Formal Criteria {#sec-bayarri-desiderata}
 
-@bayarri2012 propose a set of criteria for evaluating objective priors used in Bayesian model comparison. The main paper summarizes which of these properties link-consistent priors possess (see the Summary of Step 3 in the main text). Here we assess the properties in more detail and compare link-consistent priors to g-priors for GLMs, distinguishing which properties are provable from which are demonstrated empirically.
+@bayarri2012 propose criteria for priors used in Bayesian model choice, grouped into basic, consistency, predictive matching, and invariance criteria. Here we assess link-consistent priors against the criteria that apply to them, compare them with g-priors, and state for each property whether it is established by a theorem in the cited source or only observed in our simulations.
 
-*Monotone evidence growth in effect size.* At a fixed sample size, the Bayes factor under the link-consistent prior increases monotonically with the true effect size, so larger effects yield stronger evidence for $H_1$ (see the Consistency Simulation above). Fixed-$g$ priors, by contrast, suffer from the *information paradox* described by @liang2008 for the Gaussian linear model: because the prior contracts as the information grows, the Bayes factor can remain bounded even as $R^2 \to 1$, a setting in which unbounded evidence would be attainable. Mixture-of-$g$ priors (e.g., the ZS-adapted prior of @liang2008) resolve this paradox, but in the context of GLMs their evaluation requires Laplace approximation [@liclyde2018], which introduces additional approximation error and is not accessible via standard software such as `brms`.
+*Information consistency.* For the Gaussian linear model with a fixed $g$, @liang2008 [pp. 412--413] show that the Bayes factor tends to a finite constant as $R^2 \to 1$ for fixed $n$ and number of predictors, which they call the information paradox. Mixtures of g-priors avoid it if the prior on $g$ satisfies the condition of their Theorem 2; the Zellner--Siow prior does, and the hyper-g prior does for $a \leq n - p + 1$ [@liang2008, pp. 415--416]. For link-consistent priors in binomial GLMs we have no such result. In our simulations, evidence grew with the effect size at a fixed sample size (see Consistency Simulation).
 
-*Model selection consistency.* Highly diffuse priors exhibit Bartlett's paradox: as $g \to \infty$ (i.e., as the prior becomes arbitrarily diffuse), the Bayes factor collapses to favor $H_0$ regardless of the data. A fixed, *finite* $g$ avoids Bartlett's paradox, at the cost of the information paradox above. Link-consistent priors with fixed, finite scale likewise avoid this problem; model selection consistency (the probability of correctly identifying the true model approaching 1 as $n \to \infty$) follows from standard Bayesian consistency results for proper priors with full support at the true parameter value. Mixture-of-$g$ priors also achieve model selection consistency under regularity conditions [@liang2008].
+*Bartlett's paradox.* For fixed $n$, letting $g \to \infty$ makes the Bayes factor go to zero, that is, favor the null, regardless of the data [@liang2008, p. 412]. Link-consistent priors have a fixed, finite scale, so this limit does not arise.
 
-*Invariance to group labeling.* @bayarri2012 discuss *measurement invariance* -- invariance to changes in the outcome's measurement units. Binomial GLMs have no unit-bearing outcome, so the closest analogue is invariance to arbitrary group labels. Under sum-to-zero $\pm 1$ contrast coding, the link-consistent Logistic(0, 0.25) prior implies a symmetric implied prior distribution for $\delta p$: reversing the sign of the predictor reverses the sign of $b_1$ but leaves $|\delta p|$ unchanged. The Bayes factor therefore does not depend on which group is arbitrarily labeled $+1$ or $-1$. G-prior scales are determined by the Fisher information matrix evaluated at a reference point $\beta_0$, which depends on the design structure; the resulting symmetry properties depend on the specific design.
+*Model selection consistency.* As the sample size grows, the posterior probability of the true model should converge to 1 [@bayarri2012, Criterion 2]. For the Gaussian linear model, a fixed $g$ is not consistent when the null model is true; the prior on $g$ must depend on $n$ [@liang2008, p. 423]. The Zellner--Siow and hyper-g/$n$ priors are consistent for any true model, and the hyper-g prior is consistent except when the null model is true [@liang2008, pp. 416--417]. These results assume designs in which the models can be told apart asymptotically. For link-consistent priors in binomial GLMs we know of no general result. In our simulations, median evidence for the correct hypothesis grew with the sample size up to 100 participants (see Consistency Simulation).
 
-*Interpretable implied prior on the probability scale.* This property is related to, but weaker than, *predictive matching* in @bayarri2012, which concerns marginal predictive distributions at minimal sample sizes. In our workflow, the link-consistent prior yields an analytically known implied prior on the probability scale by construction: because the prior family mirrors the inverse link function (probability integral transform), the implied prior distribution on the probability scale is exactly uniform at scale 1 and plausibly concentrated at scale 0.75. The implied prior distributions implied by g-priors on the probability scale are not analytically tractable (see @tbl-gprior-scales and @fig-S3-gprior-pp) and must be numerically evaluated for each specific dataset, limiting their use as a diagnostic tool.
+*Invariance.* @bayarri2012 require that the units of measurement of the observations or the parameters do not affect the answers (measurement invariance, Criterion 6) and that answers be invariant under suitable transformation groups (group invariance, Criterion 7). Binomial outcomes have no units. The closest analogue for our design is invariance to the arbitrary labeling of the two conditions: under sum-to-zero $\pm 1$ coding and a prior symmetric around zero, reversing the labels reverses the sign of $b_1$ and leaves the Bayes factor unchanged. For g-priors, the corresponding properties depend on the design matrix.
 
-@tbl-bayarri-comparison summarizes the comparison.
+*Predictive matching.* @bayarri2012 [Criterion 5] require that competing models have equal or close marginal predictive distributions for data of a minimal sample size, so that a minimal sample cannot discriminate between them. We did not examine this criterion. Our workflow uses a different and more modest property: the implied prior on the probability scale is known exactly (Step 2 of the main text), so the researcher can judge it directly. For g-priors in GLMs, the implied prior on the probability scale has to be computed for each design (see @tbl-gprior-implied).
 
-| Property | Link-consistent prior | G-prior (fixed $g$) | Mixture-of-$g$ |
+*Computation.* @liclyde2018 obtain Bayes factors for mixtures of g-priors in GLMs from an integrated Laplace approximation with error of order $n^{-1}$ and implement them in the R package BAS. g-priors for GLMs are not available in `brms` or Stan.
+
+| Property | Link-consistent prior | G-prior (fixed $g$) | Mixture of g-priors |
 |-----------|:-------------|:-------------------|:--------------|
-| Monotone evidence growth in effect size (fixed $n$) | Yes (empirical) | No (information paradox) | Yes |
-| Model selection consistency ($n \to \infty$) | Yes | Yes for finite $g$ (fails as $g \to \infty$; Bartlett's paradox) | Yes |
-| Invariance to group labeling | Yes (sum-to-zero coding) | Design-dependent | Design-dependent |
-| Interpretable implied prior on probability scale | Yes (by construction via Step 2) | Not directly accessible | Not directly accessible |
-| Available in `brms`/Stan | Yes | No | No |
+| Information consistency | Not established; evidence grew with effect size in our simulations | No (information paradox) | Yes, if the prior on $g$ satisfies Theorem 2 of @liang2008 (e.g., Zellner--Siow) |
+| Avoids Bartlett's paradox | Yes (finite scale) | Yes for finite $g$ | Depends on the prior on $g$ |
+| Model selection consistency | Not established; evidence grew with sample size up to 100 participants in our simulations | Only if $g$ grows with $n$; a fixed $g$ is inconsistent under the null | Zellner--Siow and hyper-g/$n$: yes; hyper-g: not under the null |
+| Invariance to condition labels | Yes (sum-to-zero coding, symmetric prior) | Depends on the design | Depends on the design |
+| Implied prior on the probability scale | Known exactly (Step 2) | Computed per design | Computed per design |
+| Available in `brms`/Stan | Yes | No | No (BAS for GLMs) |
 
-: Comparison of link-consistent priors, fixed-$g$ priors, and mixture-of-$g$ priors. Property list adapted from the criteria of @bayarri2012; the first row reports monotone growth of evidence with effect size, the property our simulations demonstrate. References: information paradox and mixture-of-$g$ [@liang2008]; GLM extension [@liclyde2018; @bove2011]. {#tbl-bayarri-comparison}
+: Properties of link-consistent priors, fixed-$g$ priors and mixtures of g-priors, following the criteria of @bayarri2012. Results for g-priors are those of @liang2008 for the Gaussian linear model; @liclyde2018 study these criteria for g-priors in GLMs. {#tbl-bayarri-comparison}
 
 
 ## Full Bayes Factor Calibration Results {#sec-full-bf-results}

@@ -112,18 +112,10 @@ dist_labels <- c(cauchy = "Cauchy", normal = "Normal", logistic = "Logistic")
 ## Introduction
 
 In psychology and related fields, we often have data that reflect counts of successes out of trials -- for instance, accuracy in a cognitive task or endorsement rates in a survey. These data follow a binomial distribution and are best modeled with a binomial generalized linear model (GLM):
-
-$$k_i \sim \mathrm{Binomial}(n_i, p_i)$$
-
-Here, the number of successes $k_i$ is the result of $n_i$ trials given the success probability $p_i$. To assess any effects on the number of successes, the success probability $p_i$ is related to a linear prediction term via a link function $g$ to accommodate the bounded nature of probabilities:
-
-$$g(p_i) = b_0 + b_1 x_i$$
-
-To translate the result of the linear prediction term back to the probability scale, the inverse of the link-function must be applied:
-
-$$p_i = g^{-1}(b_0 + b_1 x_i)$$
-
-For binomial models, the inverse of the link function $g^{-1}$ is either the logistic function (logistic regression), or the cumulative distribution function (CDF) of the standard normal distribution (probit regression).
+$$k_i \sim \mathrm{Binomial}(n_i, p_i),$$
+where $k_i$ is the number of successes in $n_i$ trials with success probability $p_i$. Because probabilities are bounded, effects on $p_i$ are modeled through a link function $g$ that maps the probability onto an unbounded linear predictor,
+$$g(p_i) = b_0 + b_1 x_i, \qquad p_i = g^{-1}(b_0 + b_1 x_i).$$
+For binomial models, the inverse link $g^{-1}$ is either the logistic function (logistic regression) or the cumulative distribution function (CDF) of the standard normal distribution (probit regression).
 
 When testing the hypothesis that an effect of interest exists, Bayesian hypothesis testing via Bayes factors [@wagenmakers2018a; @schonbrodt2018; @heck2022] compares a model including the effect ($H_1$) against one constraining it to zero ($H_0$); the Bayes factor (BF) $BF_{10}$ quantifies how much more likely the observed data are under $H_1$ than under $H_0$. Because $H_1$ is characterized by the prior on the effect parameter, the BF depends directly on what effects the prior treats as plausible. For models assuming normally distributed outcomes, @rouder2012 proposed principled default priors based on the JZS (Jeffreys--Zellner--Siow) framework, encoding plausible standardized effect sizes in a scale-invariant manner.
 
@@ -155,7 +147,7 @@ $$\beta \mid g, \sigma^2 \sim \mathrm{Normal}\!\left(0,\; g\,\sigma^2 (X'X)^{-1}
 
 The invariance achieved by @rouder2012 rests on two features of Gaussian linear models that do not carry over to binomial GLMs. First, linear models have a free variance parameter $\sigma^2$: expressing effects as $\theta = \beta / \sigma$ makes both the prior and the resulting Bayes factor invariant to the measurement units of the outcome. Binomial GLMs have no separate variance parameter: the variance $p(1-p)$ is determined by the mean, so there is no $\sigma$ to standardize against. Second, with the identity link, a prior on $\beta$ translates directly into a prior on differences between condition means. With a nonlinear link function, the mapping from $\beta$ to the probability scale depends on the baseline probability, so the same coefficient implies different probability differences at different baselines.
 
-Two extensions of the g-prior to binomial and other GLMs replace $X'X$ by a version of the Fisher information. @bove2011 evaluate the information at $\beta = 0$, which gives $\beta \mid g \sim \mathrm{Normal}\!\left(0,\, g\,c\,(X'WX)^{-1}\right)$ with prior weights $W$ and a constant $c$ that depends on the link function ($c = 4$ for the logit link; @bove2011, Eq. 6 and Table 1, pp. 389--390). This prior depends on the design matrix but not on the observed outcomes [@bove2011, p. 392]. @liclyde2018 instead use the observed information evaluated at the maximum-likelihood estimate, $\beta \mid g \sim \mathrm{Normal}\!\left(0,\, g\, J_n(\hat\beta)^{-1}\right)$, so their prior depends on the data as well. Both priors set the prior width relative to an information matrix rather than on the probability scale, and the implied prior on the probability scale therefore changes with the design and, for @liclyde2018, with the data. We illustrate this in the Supplementary Materials (see Comparison to G-Priors). @sekulovski2026 provide a recent large-scale comparison of Bayesian variable selection methods for logistic regression, including g-prior-based approaches, and @porwalraftery2022 compare Bayesian and frequentist model selection methods across a range of regression settings.
+Two extensions of the g-prior to binomial and other GLMs replace $X'X$ by a version of the Fisher information. @bove2011 evaluate the information at $\beta = 0$, which gives $\beta \mid g \sim \mathrm{Normal}\!\left(0,\, g\,c\,(X'WX)^{-1}\right)$ with prior weights $W$ and a constant $c$ that depends on the link function ($c = 4$ for the logit link; @bove2011, Eq. 6 and Table 1, pp. 389--390). This prior depends on the design matrix but not on the observed outcomes [@bove2011, p. 392]. @liclyde2018 instead use the observed information evaluated at the maximum-likelihood estimate, $\beta \mid g \sim \mathrm{Normal}\!\left(0,\, g\, J_n(\hat\beta)^{-1}\right)$, so their prior depends on the data as well. Both priors set the prior width relative to an information matrix rather than on the probability scale. The prior of @bove2011 changes with the design through $X'WX$; the prior of @liclyde2018 also changes with the observed success rates. In the two-condition design of our running example, the generalized g-prior with the Zellner--Siow hyperprior reduces to a $\mathrm{Cauchy}(0, 2)$ prior on the logit effect, which places most of its mass on very large probability differences (see Comparison to G-Priors for GLMs in the Supplementary Materials). @sekulovski2026 provide a recent large-scale comparison of Bayesian variable selection methods for logistic regression, including g-prior-based approaches, and @porwalraftery2022 compare Bayesian and frequentist model selection methods across a range of regression settings.
 
 Even a design-independent g-prior for GLMs would not tell us what the prior implies on the probability scale. A prior that appears reasonable on the unbounded coefficient scale can assign substantial mass to probabilities near 0 or 1, which is implausible for most behavioral experiments [@gelman2008; @ghosh2018]. This *prior--link interaction* is the problem our workflow addresses: we choose the prior by inspecting what it implies on the probability scale. For logistic regression in psychology, @oberauer2019 [pp. 4, 7] transferred the rationale of @rouder2012 to a hierarchical logistic regression and placed Cauchy priors with scale 0.353 on standardized effect sizes. As the comparison prior in Step 3, we use a Cauchy prior with scale $\sqrt{2}/2$ placed directly on the logit coefficient, the scale of the "medium" default for the JZS *t* test [CITATION NEEDED].[^gprior]
 
@@ -182,19 +174,9 @@ The link-consistent prior approach proposed here offers a design-independent alt
 
 ## The Three-Step Workflow {#sec-workflow}
 
-Prior specification for GLMs with nonlinear link functions requires bridging the gap between the coefficient scale (where priors are set) and the probability scale (where effects are interpretable). Our workflow instantiates the principled Bayesian workflow for cognitive science [@schad2021] in the specific context of prior selection for Bayes factor testing, and proceeds through three complementary steps:
+The workflow has three steps. Step 1 chooses the prior family: for the intercept, the link-consistent family gives a uniform prior on the baseline probability, a reference point from which the scale is adjusted. Step 2 shows what priors with different scales imply on the probability scale, so that the scale can be chosen by judging which baselines and effects are plausible. Step 3 simulates data with known effects and examines how the Bayes factor depends on the prior family and scale. Steps 1 and 2 require only the link function and a judgment about plausible effects, so researchers can repeat them for their own designs. Step 3 is computationally expensive. Its results apply to the designs we simulated, and designs that differ substantially, for example in the random-effects structure or the type of predictor, call for a new calibration. The workflow applies the principled Bayesian workflow for cognitive science [@schad2021] to the choice of priors for Bayes factor tests. We first specify the model used throughout and then present the three steps.
 
-**Step 1: Identify link-consistent priors.** Using the probability integral transform, we identify prior families whose cumulative distribution function (CDF) matches the inverse link function. For the intercept, this link-consistent prior produces exactly a uniform distribution on the probability scale -- an interpretable reference point. We apply the same distributional family to effect priors for parsimony; the appropriate scale for all priors is then determined in Steps 2 and 3.
-
-**Step 2: Implied priors on the probability scale.** Building on the link-consistent priors, we draw samples from the joint prior on all coefficients while varying the prior scale, transform through the inverse link, and examine the resulting distributions on the probability scale. This reveals what effect sizes and baseline rates the prior treats as plausible -- information that is not intuitively apparent from the prior on the coefficient scale alone [@gelman2020].
-
-**Step 3: Bayes factor calibration.** Finally, we simulate data under known effects and evaluate how the strength of evidence varies across prior specifications. This verifies that the priors recommended based on the probability-scale analysis yield well-calibrated Bayes factors -- neither systematically favoring $H_0$ nor $H_1$ -- and that they satisfy formal properties of principled Bayesian model comparison.
-
-The three steps differ in how often a researcher performs them. Steps 1 and 2 are carried out in any given application: Step 1 selects the prior *family* from the mathematical structure of the link function, and Step 2 calibrates its *scale* on the probability scale. Step 3 is a one-time validation -- establishing that the resulting priors behave consistently with validated g-priors and standard criteria for Bayesian model comparison -- which subsequent studies can cite to justify their priors rather than repeat for every analysis. Taken together, the steps offer a principled alternative to the default g-prior route that currently dominates prior specification for GLMs.
-
-Each step can be applied to any GLM family. Here, we demonstrate the full workflow for binomial models.
-
-## Model Specification {#sec-model}
+### Model Specification {#sec-model}
 
 <!-- R1 revision: the model now includes random slopes. Step 3 below still describes the R0 simulations (random intercepts in the main calibration) until the T5 re-calibration results replace them. -->
 
@@ -225,7 +207,7 @@ $$p(y \mid H_0) = \int p(y \mid b_0, b_1 = 0, u)\; p(u \mid \sigma, \rho)\; p(b_
 
 and $\mathrm{BF}_{10} = p(y \mid H_1) / p(y \mid H_0)$. The hyperpriors $p(\sigma)$ and $p(\rho)$ enter both marginal likelihoods, but they do not cancel from the ratio: the two integrals average different likelihoods, so a change in the hyperprior can change them by different amounts. How much the hyperprior affects the Bayes factor is therefore an empirical question, which we examine in Step 3.
 
-## Step 1: Link-Consistent Priors {#sec-link-consistent}
+### Step 1: Link-Consistent Priors {#sec-link-consistent}
 
 If a random variable $B$ has a continuous distribution with cumulative distribution function (CDF) $F$, then $F(B) \sim \mathrm{Uniform}(0, 1)$. This is the probability integral transform [@casella2002]. The inverse links of logistic and probit regression are themselves CDFs: the CDF of the standard Logistic distribution and the CDF $\Phi$ of the standard Normal distribution. A $\mathrm{Logistic}(0, 1)$ prior on $b_0$ under the logit link, and a $\mathrm{Normal}(0, 1)$ prior on $b_0$ under the probit link, therefore imply a uniform prior on the baseline probability $g^{-1}(b_0)$. We call a prior family whose CDF equals the inverse link the *link-consistent* family (@tbl-link-consistent).
 
@@ -240,7 +222,7 @@ We use the uniform distribution as an interpretable reference point, not as a fo
 
 For the effect $b_1$, the probability integral transform gives no comparable result, because the probabilities in the two conditions depend on $b_0 - b_1$ and $b_0 + b_1$. Under the probit link, if $b_0 \sim \mathrm{Normal}(0, s_{b_0})$ and $b_1 \sim \mathrm{Normal}(0, s_{b_1})$ independently, then $b_0 \pm b_1 \sim \mathrm{Normal}\big(0, \sqrt{s_{b_0}^2 + s_{b_1}^2}\big)$, and $\Phi(b_0 \pm b_1)$ is uniform only when $s_{b_0}^2 + s_{b_1}^2 = 1$. For example, $s_{b_0} = 0.75$ and $s_{b_1} = 0.25$ give a combined scale of `r round(sqrt(0.75^2 + 0.25^2), 2)`. Under the logit link, the sum of two Logistic variables is not Logistic, so there is no exact result. We nevertheless use the link-consistent family for $b_1$ as well, so that all coefficients have priors from the same family. This is a choice for consistency, not a consequence of the transform, and its scale has to be set separately (Step 2).
 
-## Step 2: Implied Priors on the Probability Scale {#sec-prior-predictive}
+### Step 2: Implied Priors on the Probability Scale {#sec-prior-predictive}
 
 ```{r}
 #| label: setup-step2
@@ -290,7 +272,7 @@ Step 2 makes the priors visible on the probability scale. For the intercept, the
 
 [^software]: All simulations were conducted in R 4.5.2 [@r2023] using the SimDesign package [version 2.25; @chalmers2020]. Bayesian models for Step 3 were fitted with brms [version 2.23.0; @burkner2017; @burkner2018] using CmdStan [version 2.38.0; @stan2023] via the cmdstanr interface [version 0.9.0; @gabry2024]. Marginal likelihoods for bridge sampling were estimated with the bridgesampling package [version 1.2.1; @gronau2017]. [All simulation code and analysis scripts are available at <https://github.com/GidonFrischkorn/PriorsBinomial>.]{.content-visible unless-meta="mask"}[All simulation code and analysis scripts are available in a public repository (link withheld for masked review).]{.content-visible when-meta="mask"}
 
-### Intercept Prior {#sec-pp-intercept}
+#### Intercept Prior {#sec-pp-intercept}
 
 The intercept $b_0$ determines the baseline success probability. A poorly chosen intercept prior places substantial mass near $p = 0$ or $p = 1$, that is, it treats floor and ceiling performance as plausible before any experimental manipulation.
 
@@ -313,7 +295,7 @@ plot_p_intercept_ridges(fig1_draws, sd_b1_focus = 0.25)
 
 At $s_{b_0} = 1$, the link-consistent prior places exactly `r pct(floor_mass("logit", "logistic", 1))` of its mass below 0.05 or above 0.95, as a uniform distribution must (@fig-1-p-intercept). At $s_{b_0} = 0.75$, this mass drops to `r pct(floor_mass("logit", "logistic", 0.75))` for the logit link and `r pct(floor_mass("probit", "normal", 0.75))` for the probit link. We use $s_{b_0} = 0.75$, that is, $\mathrm{Logistic}(0, 0.75)$ for the logit link and $\mathrm{Normal}(0, 0.75)$ for the probit link. The choice between 0.75 and 1 is a judgment about how plausible floor and ceiling baselines are. For experiments designed to avoid floor and ceiling effects, we consider a baseline below 0.05 or above 0.95 less plausible than one near 0.5, and a scale of 1 treats all baselines as equally plausible. The Supplementary Materials report the floor and ceiling mass for other bounds and scales. As Step 3 shows, the intercept prior has little influence on the Bayes factor for the effect. A prior from the other family can be far off: a $\mathrm{Logistic}(0, 0.75)$ prior under the probit link places `r pct(floor_mass("probit", "logistic", 0.75))` of its mass below 0.05 or above 0.95.
 
-### Effect Prior {#sec-pp-effect}
+#### Effect Prior {#sec-pp-effect}
 
 ```{r}
 #| label: fig-3-delta-p
@@ -386,7 +368,7 @@ t2_crit |>
   knitr::kable(align = "lrrrrrr")
 ```
 
-### Participants Who Differ in Their Baseline {#sec-pp-participants}
+#### Participants Who Differ in Their Baseline {#sec-pp-participants}
 
 ```{r}
 #| label: fig-delta-p-participants
@@ -421,7 +403,7 @@ ggplot(part_grid, aes(x = d, y = density, colour = label)) +
 
 Because the transform depends on the baseline, the same prior implies different effects for different participants. @fig-delta-p-participants shows this for a typical participant with baseline 0.7 and for participants one random-intercept standard deviation ($\sigma_0 = 0.5$) below and above. The 90th percentile of $|\delta p|$ is `r f2(part_val(q90, 0.5, -1))` for the participant below, `r f2(part_val(q90, 0.5, 0))` for the typical participant, and `r f2(part_val(q90, 0.5, 1))` for the participant above. The spread across participants grows with $\sigma_0$: at $\sigma_0 = 1$, the 90th percentiles range from `r f2(part_val(q90, 1, 1))` to `r f2(part_val(q90, 1, -1))`. The prior on $b_1$ therefore describes a typical participant, and its implications for individual participants depend on how strongly baselines vary. Random slopes add further variation, because a participant's effect on the link scale is $b_1 + u_{1j}$; the implied priors above assume $u_{1j} = 0$.
 
-### Random Effects Hyperprior {#sec-pp-re}
+#### Random Effects Hyperprior {#sec-pp-re}
 
 ```{r}
 #| label: setup-re-pp
@@ -480,13 +462,13 @@ re_pp_draws |>
 
 When equated by their mean value, all four families produce nearly identical implied prior distributions for subject-level success probabilities (@fig-re-1-p-intercept). The primary driver is the scale, not the family. At a hyperprior mean of 0.25, subject-level probabilities are well concentrated away from floor and ceiling. Among hyperpriors with a mean of 0.25, we chose $\mathrm{Exponential}(4)$ because it has a single parameter and its density is highest at zero. Other families with the same mean would serve equally well (@fig-re-1-p-intercept); the choice of family is a matter of convenience. In `brms` [@burkner2017; @burkner2018] -- an R package for Bayesian multilevel modeling -- the default hyperprior `student_t(3, 0, 2.5)` (mean $\approx$ 2.76) spreads subject-level probabilities too heavily toward 0 and 1 for typical experiments (see the Supplementary Figures in the Supplementary Materials for the implied heterogeneity of condition effects).
 
-## Step 3: Bayes Factor Calibration {#sec-bf-calibration}
+### Step 3: Bayes Factor Calibration {#sec-bf-calibration}
 
 The probability-scale analysis established which prior families and scales produce plausible distributions on the probability scale. We now verify that these priors also yield well-calibrated Bayes factors -- that is, Bayes factors that correctly favor $H_1$ when an effect exists and $H_0$ when it does not.[^calibsense] BF estimates can diverge substantially across computational implementations [@pfister2024; @oberauer2026bf]; formal consistency properties provide a check that is implementation-independent. Because the Bayes factor is a ratio of marginal likelihoods, each averaging the likelihood over the prior, a prior that spreads mass across implausibly large effects dilutes this average with regions of low likelihood. The model under $H_1$ is then penalized for this wasted prior mass even when a true effect exists, producing Bayes factors that systematically favor $H_0$.
 
 [^calibsense]: We use *calibration* in the sense of operating characteristics: the rates at which the BF crosses evidence thresholds under known data-generating values of $b_1$. This differs from simulation-based calibration of Bayes factors [@schad2023], which evaluates BF behavior averaged over parameter values drawn from the prior rather than at fixed true values; the two perspectives are complementary.
 
-### Simulation Design
+#### Simulation Design
 
 We simulated data under the logit link with true effects ranging from $b_1 = 0$ (null) to $b_1 = 0.50$, crossing three sample sizes (30, 60, 100) and two trial counts (20, 50) in the simulations with three effect prior families (Normal, Logistic, Cauchy) at two scales ($s_{b_1} = 0.25$ and $0.50$), and two intercept prior families in the GLMs fitted to the data. The two intercept prior families were a link-consistent Logistic(0, 0.75), whose family mirrors the logit link, and a misfit Normal(0, 0.75), which does not. Results for this misfit prior characterize one specific non-link-consistent family at one scale; they need not generalize to all other intercept priors. A second simulation held fixed-effects priors at the recommended link-consistent configuration and varied only the random-effects hyperprior across three candidates: Student-*t*(3, 0, 2.5), Gamma(2, 4), and Exponential(4). Bayes factors were computed via the Savage-Dickey density ratio [@wagenmakers2018; @ly2016] -- the ratio of the prior density to the posterior density at $b_1 = 0$, which estimates how much the data have shifted belief away from the null.[^sdr]
 
@@ -538,7 +520,7 @@ bf_raw_jzs_available <- !is.null(bf_raw_jzs)
 
 ```
 
-### Effect of Prior Family and Width
+#### Effect of Prior Family and Width
 
 Because we use sum-to-zero $\pm 1$ contrast coding, the BF does not depend on which group is labeled $+1$ or $-1$ -- the implied prior on $|\delta p|$ is symmetric by construction. Given this measurement invariance, the results below isolate the effect of prior family and scale on BF calibration.
 
@@ -587,7 +569,7 @@ bf_raw |>
 
 The choice of effect prior family has little impact on the BF (@fig-bf-violin-family). All three families produce nearly identical BF distributions. The prior width has a modest effect: narrower priors ($s = 0.25$) yield slightly stronger evidence for $H_1$ when the effect is present, particularly at $b_1 = 0.2$, though the difference is small relative to variability across replications.
 
-### Comparison to the JZS/Cauchy Default
+#### Comparison to the JZS/Cauchy Default
 
 A key desideratum for principled prior choice in hypothesis testing is that the prior should concentrate its mass on scientifically plausible effect sizes. The probability-scale analysis in Step 2 showed that the JZS/Cauchy default fails this desideratum -- its heavy tails assign substantial probability to $|\delta p| > 0.30$ even at moderate scales. Here we characterize what different prior scales and families imply for BF behavior, separating the contribution of scale from that of family.
 
@@ -635,7 +617,7 @@ knitr::include_graphics(here("figures", "auc_jzs_comparison.png"))
 
 Across all conditions, and as the monotonicity argument predicts, all four prior combinations produce indistinguishable AUC trajectories; the scale-to-scale differences are non-systematic and lie within bootstrap confidence intervals. Because $\mathrm{BF}_{01} = 1/\mathrm{BF}_{10}$, ranking datasets by evidence for $H_0$ is the exact reverse of ranking them by evidence for $H_1$, so a single AUC characterizes both detection directions. The factors that increase AUC are sample size, trial count, and true effect size: properties of the data, not of the prior. This decomposition has a direct interpretation in signal detection theory: prior scale is a criterion parameter, not a sensitivity parameter. It controls where the BF mass falls relative to any fixed decision threshold, setting the operating point on the ROC curve, but leaves the underlying discriminability of the test unchanged. Prior family contributes negligibly even to this criterion shift. Researchers who prefer the Cauchy family can adopt Cauchy(0, 0.25) and achieve BF behavior that is indistinguishable from the link-consistent Logistic prior at the same scale. The advantage of link-consistent priors is not superior discriminability over other prior families. It is that the probability-scale analysis provides a principled basis for scale selection, grounded in what the prior implies on the probability scale.
 
-### Effect of Random-Effects Hyperprior
+#### Effect of Random-Effects Hyperprior
 
 ```{r}
 #| label: fig-bf-violin-re
@@ -681,15 +663,15 @@ bf_raw_re |>
 
 The random-effects hyperprior (the prior on the standard deviation of individual differences) had little impact on Bayes factors for the fixed effect (@fig-bf-violin-re), even though the Student-*t*(3, 0, 2.5) is far wider than Exponential(4). The hyperprior enters both marginal likelihoods, but it does not cancel from the ratio (see [Model Specification](#sec-model)); its small influence here is an empirical result for the designs we simulated. The hyperprior may matter more for other inferential goals, such as estimating the random-effects variance itself.
 
-### Summary
+#### Summary
 
 The most important prior-choice factor across all conditions is the scale of the effect prior; the choice of prior family, intercept prior, and random-effects hyperprior had negligible effects. The signal-detection analysis locates *why*: prior scale acts as a decision criterion, not as a sensitivity parameter. At equal nominal scales, Logistic and Cauchy priors achieve identical discriminability (equal AUC); changing the scale only slides the operating point along the shared ROC curve.
 
 The criterion interpretation makes the practical trade-off explicit. The wider JZS/Cauchy scale places more mass on large effects, setting a strict implicit criterion for $H_1$: when a small genuine effect is present ($b_1 = 0.10$), it frequently produces misleading evidence for $H_0$ -- the diffuse prior makes even a true small effect look like noise. The narrower scale is more sensitive to such effects, but correspondingly yields weaker evidence for a true null, correctly supporting $H_0$ less often when no effect is present (full detection and null-support rates across all conditions are in the Supplementary Materials). Both behaviors are two operating points on the same curve; which to favor is a decision about acceptable error rates, not a property of the prior family. For medium and large effects ($b_1 \geq 0.20$), all priors perform similarly.
 
-The formal properties of these BFs can be stated precisely. Model selection consistency holds for any proper prior with positive density at the true parameter value: as the sample grows, the BF increasingly favors the correct hypothesis [@bayarri2012] [UNVERIFIED: check the condition against @bayarri2012]. Monotone growth of evidence with effect size at fixed sample size is demonstrated empirically in the supplementary consistency analysis. What link-consistent priors add, then, is not sharper BF calibration but a substantively interpretable basis for choosing the prior scale. Still, when computing Bayes factors for drawing inferences, we recommend running a prior sensitivity analysis by computing BFs across a small set of plausible effect-prior widths (e.g., $s_{b_1} \in \{0.15, 0.25, 0.35\}$) to test the robustness of the results over varying prior scales.
+@bayarri2012 list model selection consistency among their criteria for priors in model choice: as the sample size grows, the posterior probability of the true model should converge to 1. We know of no general result that establishes this property for fixed-scale priors in binomial GLMs, so we examined it by simulation. In the simulated conditions, median evidence for $H_1$ grew with the sample size when an effect of at least 0.10 was present, median evidence for $H_0$ grew from 20 to 100 participants when no effect was present, and evidence grew with the effect size at a fixed sample size (see the consistency analysis in the Supplementary Materials). <!-- TODO: the consistency simulation used the KDE Savage-Dickey estimator; at n = 200 under H0 the IQR of log10 BF10 spans -5.5 to 2.6 and large BFs are unreliable (T3 benchmark). Re-run with bridge sampling before relying on the n = 200 cells; until then report only n <= 100. --> What link-consistent priors add, then, is not sharper BF calibration but a substantively interpretable basis for choosing the prior scale. Still, when computing Bayes factors for drawing inferences, we recommend running a prior sensitivity analysis by computing BFs across a small set of plausible effect-prior widths (e.g., $s_{b_1} \in \{0.15, 0.25, 0.35\}$) to test the robustness of the results over varying prior scales.
 
-### Transparency and Openness
+## Transparency and Openness
 
 [All simulation scripts, model-fitting code, and analysis code reported in this paper are publicly available at <https://github.com/GidonFrischkorn/PriorsBinomial>, and the pre-computed simulation outputs needed to reproduce the figures and tables are archived on the Open Science Framework (<https://doi.org/10.17605/OSF.IO/YJGKT>).]{.content-visible unless-meta="mask"}[All simulation scripts, model-fitting code, and analysis code reported in this paper are publicly available in a public repository, with pre-computed simulation outputs archived on the Open Science Framework (links withheld for masked review).]{.content-visible when-meta="mask"} No empirical data were collected; all results are based on computer simulations. This study was not preregistered. [An earlier, more tutorial-oriented version of this manuscript is publicly available as a preprint [@frischkorn2026preprint]; that version was submitted to *Advances in Methods and Practices in Psychological Science* and not accepted. The present manuscript is a substantially revised and extended version produced in response to the recommendations from that review.]{.content-visible unless-meta="mask"}[An earlier, more tutorial-oriented version of this manuscript is available as a preprint; bibliographic details are withheld for masked review.]{.content-visible when-meta="mask"} Software versions used: R 4.5.2 [@r2023]; SimDesign 2.25 [@chalmers2020]; brms 2.23.0 [@burkner2017; @burkner2018]; CmdStan 2.38.0 [@stan2023] via cmdstanr 0.9.0 [@gabry2024]; bridgesampling 1.2.1 [@gronau2017].
 
