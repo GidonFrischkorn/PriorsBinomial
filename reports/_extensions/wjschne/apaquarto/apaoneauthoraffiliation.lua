@@ -38,7 +38,7 @@ Meta = function(meta)
         au ..
         "\nAll authors must have an affiliation. For example,\n\nauthor:\n  - name: " ..
         au ..
-        "\n    affiliations: Genereric University\n\nIf authors are unaffiliated, list a city, as well as a region and/or country.\nFor example, \n\nauthor:\n  - name: " ..
+        "\n    affiliations: Generic University\n\nIf authors are unaffiliated, list a city, as well as a region and/or country.\nFor example, \n\nauthor:\n  - name: " ..
         au .. "\n    affiliations:\n      city: Los Angeles\n      region: CA\n")
       end
     end
