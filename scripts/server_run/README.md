@@ -151,3 +151,44 @@ VM2 PB_ROWS="2,5,7,9,10,11,13,15,17,19,23,25,27,28,30,33,34,35,36,38,40,42,44,46
 ```
 
 Contiguous halves `1-36` / `37-72` are unbalanced (455 / 572 CPU-h).
+
+## 6. Consistency re-run with bridge sampling (after T5; Script 16)
+
+`scripts/16_BFCalibration_Consistency_Bridge.R` repeats the consistency
+simulation of Script 03c (between-subjects, Logistic(0, 0.25) effect prior,
+Logistic(0, 0.75) intercept, random intercepts with Exponential(4), 6 true
+effects x 5 sample sizes, n_trials = 20) with the bridge engine of
+`R/bf_helpers.R`: two rstan models compiled once (H1, H0), refits by
+`update()`, 4 x 5,000 post-warmup draws, 50 replications per cell (3,000
+brms fits). It is independent of the random-slopes run and needs only the
+packages of section 1.
+
+```bash
+cd ~/PriorsBinomial && mkdir -p logs
+# pre-flight: one cell, one replication (about 5 min; expects a line SMOKE_CONSISTENCY_BRIDGE)
+timeout 30m Rscript scripts/16_BFCalibration_Consistency_Bridge.R smoke > logs/t7_consistency_smoke_vm.log 2>&1; echo "EXIT $?" >> logs/t7_consistency_smoke_vm.log
+# full run, detached
+PB_NCORES=30 nohup bash -c 'timeout 7d Rscript scripts/16_BFCalibration_Consistency_Bridge.R full; echo "==== EXIT $?"' > logs/t7_consistency_full.log 2>&1 < /dev/null &
+tail -f logs/t7_consistency_full.log      # done when "CONSISTENCY BRIDGE COMPLETE" and "==== EXIT 0" appear
+```
+
+Environment variables: `PB_NCORES` (workers), `PB_REPS` (default 50),
+`PB_SEED` (default 20261104; per-cell seeds via `genSeeds()` on the Design),
+`PB_N_SAMPLING` (post-warmup draws per chain, default 5000).
+
+Re-launching after a crash is safe: SimDesign resumes from
+`output/Simulation_BFCalibration_Consistency_Bridge/SIMDESIGN-TEMPFILE_consistency_bridge`,
+and a finished run (`res_bf_calibration_consistency_bridge.rds` present) is
+skipped; the flat files are then rebuilt from it. Copy back and inspect:
+
+```bash
+# on the laptop
+rsync -avz <user>@<vm>:~/PriorsBinomial/output/Simulation_BFCalibration_Consistency_Bridge ./output/
+rsync -avz <user>@<vm>:~/PriorsBinomial/output/bf_calibration_consistency_bridge_*.rds ./output/
+rsync -avz <user>@<vm>:~/PriorsBinomial/logs/t7_consistency_* ./logs/
+```
+
+Outputs: `output/bf_calibration_consistency_bridge_raw.rds` (one row per
+replication; `bf10_bridge`, `log10_bf10`, diagnostics, `n_fail`) and
+`output/bf_calibration_consistency_bridge_summaries.rds` (one row per cell).
+Failed fits stay NA (`allow_na = TRUE`) and are counted in `n_fail`.

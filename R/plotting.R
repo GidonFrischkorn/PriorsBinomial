@@ -420,3 +420,155 @@ plot_bf_validation_bland_altman <- function(bf_data) {
     ) +
     prior_theme()
 }
+
+
+# ==============================================================================
+# Random-slopes BF calibration (Scripts 15 / 15b)
+# ==============================================================================
+# The second prior parameter is a SCALE (Logistic SD = scale * pi / sqrt(3));
+# axis and legend labels say "scale", never "SD".
+
+#' Facet label "b[1] == x" for plotmath
+#'
+#' @param true_b1 Numeric vector.
+#' @return Character vector parsed by `ggplot2::label_parsed`.
+b1_facet_label <- function(true_b1) paste0("b[1] == ", true_b1)
+
+#' Prior family factor with the fixed order and labels used in all figures
+#'
+#' @param family Character vector (lower case).
+#' @return Factor with levels Cauchy, Normal, Logistic.
+family_factor_rs <- function(family) {
+  factor(family, levels = c("cauchy", "normal", "logistic"),
+         labels = c("Cauchy", "Normal", "Logistic"))
+}
+
+#' Violin plot of log10 BF10 by prior family x scale, faceted by true effect
+#'
+#' @param long Replication-level tibble from `rs_raw_to_long()` (columns
+#'   `arm`, `true_b1`, `n_subjects`, `n_trials`, `true_sd_slope`, `family`,
+#'   `scale`, `log10_bf10`). Pass one arm; cells are pooled over whatever
+#'   other design columns remain, so filter `n_subjects` etc. first or use the
+#'   `facet_rows` argument.
+#' @param facet_rows Optional character, a design column (e.g. "n_subjects")
+#'   used as the row facet; `true_b1` is always the column facet.
+#' @return A ggplot2 object. Infinite BFs are dropped from the violins (they
+#'   are counted in the rates table); with fewer than two finite values per
+#'   group only the points are drawn.
+plot_rs_violin <- function(long, facet_rows = NULL) {
+  stopifnot(length(unique(long$arm)) == 1)
+  dat <- long |>
+    dplyr::filter(is.finite(log10_bf10)) |>
+    dplyr::mutate(family  = family_factor_rs(family),
+                  scale_f = factor(scale, levels = sort(unique(scale))),
+                  b1_label = b1_facet_label(true_b1))
+  p <- ggplot2::ggplot(dat, ggplot2::aes(x = scale_f, y = log10_bf10, fill = family,
+                                         colour = family)) +
+    ggplot2::geom_hline(yintercept = 0, linetype = "solid", linewidth = 0.4,
+                        colour = "grey50") +
+    ggplot2::geom_hline(yintercept = c(log10(1 / 3), log10(3)), linetype = "dashed",
+                        linewidth = 0.4, colour = "grey50") +
+    ggplot2::geom_violin(position = ggplot2::position_dodge(width = 0.8),
+                         alpha = 0.35, linewidth = 0.3, scale = "width") +
+    ggplot2::geom_point(position = ggplot2::position_jitterdodge(jitter.width = 0.1,
+                                                                 dodge.width = 0.8, seed = 1),
+                        size = 0.6, alpha = 0.4, show.legend = FALSE) +
+    ggplot2::scale_x_discrete("Effect-prior scale") +
+    ggplot2::scale_y_continuous(expression(log[10](BF[10]))) +
+    ggplot2::scale_fill_viridis_d("Prior family", option = "D", end = 0.85, drop = FALSE) +
+    ggplot2::scale_colour_viridis_d("Prior family", option = "D", end = 0.85, drop = FALSE) +
+    prior_theme()
+  if (is.null(facet_rows)) {
+    p + ggplot2::facet_wrap(~ b1_label, labeller = ggplot2::label_parsed)
+  } else {
+    p + ggplot2::facet_grid(stats::as.formula(paste(facet_rows, "~ b1_label")),
+                            labeller = ggplot2::labeller(b1_label = ggplot2::label_parsed),
+                            scales = "free_y")
+  }
+}
+
+#' Dual ROC curves (H1 and H0 detection), colour by prior family x scale
+#'
+#' @param curves Long ROC tibble from Script 15
+#'   (`bf_calibration_rs_roc_curves.rds`), one arm, filtered to the cells to
+#'   show. Rows with `kind == "curve"` give the curves and bands; rows with
+#'   `kind == "operating_point"` and `threshold_bf == op_threshold` are drawn
+#'   as open circles.
+#' @param op_threshold Numeric BF threshold of the operating point (3 or 10).
+#' @param facet_cols Optional character, design column for the column facets
+#'   (e.g. "n_subjects"); `direction` always forms the rows.
+#' @param show_band Logical, draw the bootstrap band of the TPR.
+#' @return A ggplot2 object.
+plot_rs_roc <- function(curves, op_threshold = 3, facet_cols = NULL, show_band = TRUE) {
+  stopifnot(length(unique(curves$arm)) == 1)
+  curves <- curves |>
+    dplyr::mutate(
+      family = family_factor_rs(family),
+      prior_label = factor(prior_label, levels = unique(prior_label[order(family, scale)])),
+      direction = factor(direction, levels = c("H1", "H0"),
+                         labels = c("H[1] ~ detection ~ (BF[10] > t)",
+                                    "H[0] ~ detection ~ (BF[0][1] > t)")))
+  cur <- dplyr::filter(curves, kind == "curve")
+  ops <- dplyr::filter(curves, kind == "operating_point", threshold_bf == op_threshold)
+  p <- ggplot2::ggplot(cur, ggplot2::aes(x = fpr, y = tpr, colour = prior_label,
+                                         fill = prior_label, group = prior_label)) +
+    ggplot2::geom_abline(slope = 1, intercept = 0, colour = "grey70", linetype = "dotted")
+  if (show_band) {
+    p <- p + ggplot2::geom_ribbon(ggplot2::aes(ymin = tpr_lo, ymax = tpr_hi),
+                                  alpha = 0.08, colour = NA, show.legend = FALSE)
+  }
+  p <- p +
+    ggplot2::geom_line(linewidth = 0.7) +
+    ggplot2::geom_point(data = ops, ggplot2::aes(x = fpr, y = tpr, colour = prior_label),
+                        size = 2.5, shape = 21, fill = "white", stroke = 1.1,
+                        show.legend = FALSE, inherit.aes = FALSE) +
+    ggplot2::scale_x_continuous("False positive rate", limits = c(0, 1)) +
+    ggplot2::scale_y_continuous("True positive rate", limits = c(0, 1)) +
+    ggplot2::scale_colour_viridis_d("Effect prior (family, scale)", option = "D", end = 0.9) +
+    ggplot2::scale_fill_viridis_d("Effect prior (family, scale)", option = "D", end = 0.9) +
+    ggplot2::labs(caption = sprintf("Open circles: BF = %g criterion", op_threshold)) +
+    prior_theme() +
+    ggplot2::theme(legend.text = ggplot2::element_text(size = 10))
+  fml <- if (is.null(facet_cols)) "direction ~ ." else paste("direction ~", facet_cols)
+  p + ggplot2::facet_grid(stats::as.formula(fml),
+                          labeller = ggplot2::labeller(direction = ggplot2::label_parsed))
+}
+
+#' AUC against the number of subjects, colour by scale and linetype by family
+#'
+#' @param auc Tibble from Script 15 (`bf_calibration_rs_roc_auc.rds`), one arm.
+#'   Facets: `true_b1` (rows) x `n_trials` (columns); `true_sd_slope` levels
+#'   are pooled into the facet label if more than one is present.
+#' @return A ggplot2 object with 95% bootstrap intervals as vertical ranges.
+plot_rs_auc <- function(auc) {
+  stopifnot(length(unique(auc$arm)) == 1)
+  dat <- auc |>
+    dplyr::filter(!is.na(auc)) |>
+    dplyr::mutate(
+      family   = family_factor_rs(family),
+      scale_f  = factor(scale, levels = sort(unique(scale))),
+      n_subjects = factor(n_subjects, levels = sort(unique(n_subjects))),
+      b1_label = b1_facet_label(true_b1),
+      col_label = if (dplyr::n_distinct(true_sd_slope) > 1) {
+        paste0("T = ", n_trials, ", slope SD = ", true_sd_slope)
+      } else paste0("T = ", n_trials))
+  dodge <- ggplot2::position_dodge(width = 0.5)
+  ggplot2::ggplot(dat, ggplot2::aes(x = n_subjects, y = auc, colour = scale_f,
+                                    linetype = family,
+                                    group = interaction(scale_f, family))) +
+    ggplot2::geom_hline(yintercept = 0.5, colour = "grey60", linetype = "dashed",
+                        linewidth = 0.4) +
+    ggplot2::geom_linerange(ggplot2::aes(ymin = auc_lo, ymax = auc_hi),
+                            position = dodge, linewidth = 0.5) +
+    ggplot2::geom_line(position = dodge, linewidth = 0.7) +
+    ggplot2::geom_point(position = dodge, size = 2) +
+    ggplot2::facet_grid(b1_label ~ col_label,
+                        labeller = ggplot2::labeller(b1_label = ggplot2::label_parsed)) +
+    ggplot2::scale_colour_viridis_d("Effect-prior scale", option = "D", end = 0.9) +
+    ggplot2::scale_linetype_manual("Prior family",
+                                   values = c(Cauchy = "dotted", Normal = "dashed",
+                                              Logistic = "solid"), drop = FALSE) +
+    ggplot2::scale_y_continuous("AUC (effect vs. null datasets)", limits = c(0.4, 1)) +
+    ggplot2::scale_x_discrete("Number of subjects") +
+    prior_theme()
+}

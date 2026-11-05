@@ -1,6 +1,6 @@
 ---
-title: "Supplementary Materials: Principled Default Priors for Bayesian Hypothesis Testing in Binomial GLMs"
-shorttitle: "Supplement -- Matched Priors for BF Testing in Binomial GLMs"
+title: "Supplementary Materials: Link-Consistent Priors for Bayesian Hypothesis Testing in Binomial GLMs"
+shorttitle: "Supplement -- Link-Consistent Priors for Binomial GLMs"
 author:
   - name: Gidon T. Frischkorn
     corresponding: true
@@ -78,6 +78,15 @@ if (jzs_available) {
 }
 logbf_fig_available <- file.exists(here("figures", "logbf_distributions.png"))
 
+# T1 (2026-10-05): reproduction check of the JZS/ROC run (scripts/11_PairedDifferences_SD.R)
+t1_repro <- tryCatch(readRDS(here("output", "t1_reproduction_check.rds")), error = function(e) NULL)
+if (!is.null(t1_repro)) {
+  # median |log(BF_reproduced / BF_stored)| for the Logistic prior, per variant
+  t1_repro_slope  <- median(t1_repro$rel_err_log[t1_repro$variant == "A_slopegen_slopefit"])
+  t1_repro_intfit <- median(t1_repro$rel_err_log[t1_repro$variant == "B_slopegen_intfit"])
+  t1_repro_int    <- median(t1_repro$rel_err_log[t1_repro$variant == "C_intgen_intfit"])
+}
+
 # Goal 2 extended: Information / Lindley consistency simulation
 consistency_available <- file.exists(here("output", "bf_calibration_consistency_summaries.rds"))
 if (consistency_available) {
@@ -95,7 +104,7 @@ if (consistency_available) {
 
 ### Implied Priors on the Probability Scale (Step 2)
 
-The probability-scale analysis crossed the following factors:
+Step 2 of the main text uses exact transforms of the prior on $b_1$ at fixed baselines, computed from the quantile function of the prior and the Jacobian of $\delta p$ (`scripts/12_ConditionalTransforms.R`) and checked against $10^6$ Monte Carlo draws per combination of link, family, scale and baseline. The intercept figure in the main text and the floor-and-ceiling figures below use draws from an earlier sampling design, in which the intercept prior was sampled and transformed to the probability scale. That design crossed the following factors:
 
 - Link function: logit, probit (2 levels)
 - Intercept prior family ($b_0$): Normal, Logistic, Cauchy (3 levels)
@@ -103,7 +112,7 @@ The probability-scale analysis crossed the following factors:
 - Effect prior family ($b_1$): Normal, Logistic, Cauchy (3 levels)
 - Effect prior scale ($s_{b_1}$): 0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.75, 1.00, 1.50, 2.00 (10 levels)
 
-This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each condition, we drew 10 replications of 10,000 samples using the SimDesign package.
+This yields $2 \times 3 \times 4 \times 3 \times 10 = 720$ conditions. For each condition, we drew 10 replications of 10,000 samples using the SimDesign package. For the intercept, the sampled values are transforms of $b_0$ alone, so they agree with the exact densities shown as dashed curves in the main text.
 
 A separate probability-scale analysis for the random-effects hyperprior (referenced in the Random Effects Hyperprior section of the main text) held the fixed-effects priors at the recommended link-consistent configuration (Logistic(0, 0.75) intercept, Logistic(0, 0.25) effect) and crossed:
 
@@ -113,9 +122,11 @@ A separate probability-scale analysis for the random-effects hyperprior (referen
 
 This yields $4 \times 5 \times 2 = 40$ conditions. For each condition, we drew 10 replications of 1,000 simulated studies with 50 subjects each, sampling the random-effects SD from the hyperprior and the fixed effects from their priors, and computed the implied subject-level success probabilities and condition effects.
 
-### Bayes Factor Calibration (Step 3)
+### Earlier Bayes Factor Calibration Simulations (Submitted Version)
 
-The BF calibration crossed:
+The main text reports the calibration with random intercepts and random slopes, whose design is given there. The simulations described in this and the next two subsections were reported in the submitted version of this manuscript. They are retained here for completeness, together with their full results in the sections *Full Bayes Factor Calibration Results* and *JZS/Cauchy Comparison: Full Results*. Two caveats apply to all of them. Their Bayes factors were computed with the Savage-Dickey density ratio using a kernel density estimate of the posterior at $b_1 = 0$ from 4,000 posterior draws; a benchmark against bridge sampling showed that this estimator is accurate for $|\log_{10} \mathrm{BF}_{10}| < 1$ but can be off by several orders of magnitude for strong evidence, so only threshold rates and distributions in the weak-evidence range are interpretable. Fits that failed were recorded with the same value as extreme evidence, so the two cannot be separated in these outputs.
+
+The first calibration used random intercepts only, in data generation and in the analysis model, and crossed:
 
 - Intercept prior family: Logistic, Normal (2 levels; both at $s_{b_0} = 0.75$)
 - Effect prior family: Normal, Logistic, Cauchy (3 levels)
@@ -203,7 +214,7 @@ p_info + p_lindley
 
 ### JZS/Cauchy Comparison Simulation
 
-To directly compare the link-consistent prior against the JZS/Cauchy default [@rouder2012], we crossed prior scale and design factors, fitting both effect-prior families to every simulated dataset:
+To compare the link-consistent prior against the JZS-motivated $\mathrm{Cauchy}(0, \sqrt{2}/2)$ prior, we crossed prior scale and design factors, fitting both effect-prior families to every simulated dataset. The submitted version described this simulation as using random intercepts only. That was incorrect: the data were generated with random intercepts and random slopes (true slope standard deviation 0.10), and the analysis model included both.[^v3-check] The design was:
 
 - Effect prior scale ($s_{b_1}$): 0.25, $\sqrt{2}/2 \approx 0.707$ (2 levels)
 - Effect prior family: Logistic, Cauchy (both fitted to each dataset)
@@ -211,7 +222,9 @@ To directly compare the link-consistent prior against the JZS/Cauchy default [@r
 - Number of subjects: 20, 30, 50 (3 levels)
 - Trials per subject: 20, 50 (2 levels)
 
-This yields $2 \times 3 \times 3 \times 2 = 36$ conditions with 300 replications each; within every replication, both effect-prior families were fitted to the same dataset, so family comparisons are within-dataset.
+This yields $2 \times 3 \times 3 \times 2 = 36$ conditions with 300 replications each. Within every replication, both effect-prior families were fitted to the same dataset, so family comparisons at the same scale are within-dataset; the two scales, however, were fitted to different datasets, so comparisons across scales in this simulation are not paired. The random-slopes calibration in the main text fits all scales and families to the same data.
+
+[^v3-check]: The code of this run was committed after the run, so we verified the design by regenerating stored datasets from their seeds and refitting them (10 replications of one cell). Generating random slopes and fitting the random-slope model reproduced the stored Bayes factors with a median absolute log ratio of `r if (exists("t1_repro_slope")) sprintf("%.3f", t1_repro_slope) else "[PENDING: output/t1_reproduction_check.rds]"`; generating random slopes but fitting random intercepts only gave `r if (exists("t1_repro_intfit")) sprintf("%.3f", t1_repro_intfit) else "[PENDING]"`; generating and fitting random intercepts only, as the submitted text described, gave `r if (exists("t1_repro_int")) sprintf("%.3f", t1_repro_int) else "[PENDING]"`. The stored baseline probabilities were reproduced exactly in all three variants.
 
 ### Density Formulas for Analytical Overlays
 
@@ -297,7 +310,7 @@ gp_tab |>
 
 ## Full Bayes Factor Calibration Results {#sec-full-bf-results}
 
-The main paper reports BF calibration results for a representative subset ($n_{\text{subjects}} = 30$, 20 trials, true $b_1 \in \{0, 0.10, 0.20\}$). Here we report the full results for the link-consistent Logistic(0, 0.25) effect prior across all 5 true effect sizes, 3 sample sizes, and 2 trial counts.
+This section reports the full results of the earlier random-intercept calibration described under *Earlier Bayes Factor Calibration Simulations* (Savage-Dickey estimates; threshold rates only). The main text now reports the random-slopes calibration. We report the results for the link-consistent Logistic(0, 0.25) effect prior across all 5 true effect sizes, 3 sample sizes, and 2 trial counts.
 
 ### Detection Rates for the Link-Consistent Prior
 
@@ -381,7 +394,7 @@ ggplot(bf_heatmap_data,
 
 ## JZS/Cauchy Comparison: Full Results {#sec-jzs-full-results}
 
-@tbl-S-jzs-rates gives full detection-rate results for the JZS/Cauchy comparison, supplementing the ROC and AUC analyses in the main paper. It shows $P(\mathrm{BF}_{10} > 3)$ (detection rate) and $P(\mathrm{BF}_{01} > 3)$ (false-null support) for both the link-consistent Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
+This section reports the earlier JZS/Cauchy comparison (random intercepts and slopes, Savage-Dickey estimates), which the random-slopes calibration in the main text supersedes. @tbl-S-jzs-rates gives its full detection-rate results. It shows $P(\mathrm{BF}_{10} > 3)$ (detection rate) and $P(\mathrm{BF}_{01} > 3)$ (false-null support) for both the link-consistent Logistic(0, 0.25) and the JZS Cauchy(0, $\sqrt{2}/2$) prior.
 
 ```{r}
 #| label: tbl-S-jzs-rates
@@ -492,6 +505,32 @@ ggplot(jzs_continuous,
 
 
 
+
+## Random-Slopes Calibration: Full Results {#sec-rs-full-results}
+
+```{r}
+#| label: setup-rs-supp
+#| include: false
+
+rs_merged_exists <- file.exists(here("output", "res_bf_calibration_rs_merged.rds"))
+rs_rates <- if (rs_merged_exists) tryCatch(readRDS(here("output", "bf_calibration_rs_rates.rds")),
+                                           error = function(e) NULL) else NULL
+rs_available <- !is.null(rs_rates)
+```
+
+<!-- PENDING T5: full-grid tables of P(BF10 > 3) and P(BF01 > 3) per arm, cell and prior, plus failure counts, from output/bf_calibration_rs_rates.rds. -->
+
+`r if (!rs_available) "[PENDING T5: full results of the random-slopes calibration.]"`
+
+```{r}
+#| label: tbl-S-rs-rates
+#| tbl-cap: "Random-slopes calibration: $P(\\mathrm{BF}_{10} > 3)$ and
+#|   $P(\\mathrm{BF}_{01} > 3)$ for every arm, design cell and effect prior, with
+#|   the number of failed fits."
+#| eval: !expr rs_available
+
+# Built from rs_rates once the T5 results exist.
+```
 
 ## Supplementary Figures
 

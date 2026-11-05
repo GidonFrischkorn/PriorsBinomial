@@ -476,6 +476,10 @@ posterior_density_at_0 <- function(draws, method = c("kde", "logspline", "normal
 #'   `make_brms_sd_prior()`.
 #' @param backend Character, "cmdstanr" (fast, Savage-Dickey) or "rstan"
 #'   (needed for bridge sampling without per-fit recompilation).
+#' @param random_slope Logical; `TRUE` (default, Script 13) adds a random
+#'   slope of the predictor, `(1 + predictor | subject_id)`; `FALSE` fits
+#'   random intercepts only, `(1 | subject_id)` (Script 16, between-subjects
+#'   design with one row per subject).
 #' @return A `brmsfit` without draws (compiled model only).
 compile_bf_template_rs <- function(dat,
                                    link        = c("logit", "probit"),
@@ -484,20 +488,23 @@ compile_bf_template_rs <- function(dat,
                                    predictor   = "condition",
                                    hypothesis  = c("h1", "h0"),
                                    sd_prior_re = c("exponential", "gamma", "default"),
-                                   backend     = c("cmdstanr", "rstan")) {
+                                   backend     = c("cmdstanr", "rstan"),
+                                   random_slope = TRUE) {
   link        <- match.arg(link)
   dist_b0     <- match.arg(dist_b0)
   hypothesis  <- match.arg(hypothesis)
   sd_prior_re <- match.arg(sd_prior_re)
   backend     <- match.arg(backend)
 
-  re_part <- paste0("(1 + ", predictor, " | subject_id)")
+  re_part <- if (random_slope) paste0("(1 + ", predictor, " | subject_id)") else "(1 | subject_id)"
   rhs     <- if (hypothesis == "h1") paste("1 +", predictor, "+", re_part) else paste("1 +", re_part)
   form    <- brms::bf(stats::as.formula(paste("y | trials(n) ~", rhs)))
 
   priors <- c(make_brms_prior(dist_b0, scale_b0, class = "Intercept"),
-              make_brms_sd_prior(sd_prior_re, group = "subject_id", coef = "Intercept"),
-              make_brms_sd_prior(sd_prior_re, group = "subject_id", coef = predictor))
+              make_brms_sd_prior(sd_prior_re, group = "subject_id", coef = "Intercept"))
+  if (random_slope) {
+    priors <- c(priors, make_brms_sd_prior(sd_prior_re, group = "subject_id", coef = predictor))
+  }
   stanvars <- NULL
   if (hypothesis == "h1") {
     priors <- c(priors,
@@ -546,10 +553,12 @@ refit_template_rs <- function(template, dat, stanvars = NULL, seed,
 #' @param predictor Character, predictor name.
 #' @return A list: `b_draws` (numeric draws of the effect), and named numeric
 #'   `diag` with `n_div`, `rhat_max`, `ess_bulk_min` and `ess_tail_min` over
-#'   the effect and both random-effect SDs.
+#'   the effect and the random-effect SDs present in the fit (both for a
+#'   random-slopes model, the intercept SD only for random intercepts).
 fit_diagnostics_rs <- function(fit, predictor = "condition") {
   pars  <- c(paste0("b_", predictor), "sd_subject_id__Intercept",
              paste0("sd_subject_id__", predictor))
+  pars  <- intersect(pars, brms::variables(fit))
   dr    <- posterior::subset_draws(posterior::as_draws_array(fit), variable = pars)
   mats  <- lapply(pars, function(p) posterior::extract_variable_matrix(dr, p))
   np    <- brms::nuts_params(fit)
