@@ -68,6 +68,9 @@ run_mode <- if (length(args) > 0) args[1] else "full"
 stopifnot(run_mode %in% c("smoke", "smoke_bridge", "chunkcheck", "errcheck",
                           "benchmark", "full"))
 
+# output/ is gitignored, so a fresh clone has no such folder
+dir.create(here("output"), showWarnings = FALSE)
+
 if (nzchar(Sys.getenv("CMDSTAN"))) cmdstanr::set_cmdstan_path(Sys.getenv("CMDSTAN"))
 message("CmdStan ", cmdstanr::cmdstan_version(), " at ", cmdstanr::cmdstan_path())
 
